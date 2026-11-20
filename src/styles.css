@@ -1610,3 +1610,16 @@ select.nog-kiezen { color: var(--muted); border-color: var(--amber); }
 .sv-tabs { margin-bottom: 16px; }
 .sk-portaal .sk-lijst.sk-fact, .portal-card .sk-lijst { padding-left: 0; }
 .sk-strip-titel { flex: 1 1 200px; width: auto; }
+
+/* ---------- Mobiel als echte app ---------- */
+@media (max-width: 760px) {
+  input, select, textarea { font-size: 16px; } /* geen inzoomen op iPhone */
+  html, body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+  button, a { touch-action: manipulation; }
+  .op-acties .btn, .sk-sjablonen .btn { min-height: 38px; }
+  .ov-add select { max-width: 120px; }
+  .sk-strippen li { gap: 6px; }
+  .sk-strip-titel { flex-basis: 100%; order: 3; }
+  .sv-tabs { overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+}
+@media (display-mode: standalone) { body { user-select: none; -webkit-user-select: none; } input, textarea, [contenteditable] { user-select: text; -webkit-user-select: text; } }
