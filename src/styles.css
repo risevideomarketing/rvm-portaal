@@ -260,12 +260,12 @@ textarea { width: 100%; resize: vertical; }
 .fasen-kop { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
 .fasen-editor > p { margin: 0 0 14px; }
 .fase-edit { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
-.fase-edit-kop { display: grid; grid-template-columns: auto 1fr 1fr auto auto auto; gap: 8px; align-items: center; }
+.fase-edit-kop { display: grid; grid-template-columns: auto auto 1fr 1fr auto auto auto; gap: 8px; align-items: center; }
 .fase-edit-kop input { min-width: 0; font-weight: 600; }
 .fase-edit-kop input + input { font-weight: 400; }
 .fase-nr { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--paper); font-size: 12px; font-weight: 600; }
 .fase-edit-stappen { list-style: none; padding: 0 0 0 32px; margin: 10px 0 6px; display: flex; flex-direction: column; gap: 6px; }
-.fase-edit-stappen li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
+.fase-edit-stappen li { display: grid; grid-template-columns: auto auto 1fr auto; gap: 8px; align-items: center; }
 .fase-edit-stappen input { min-width: 0; font-size: 13px; padding: 5px 8px; }
 .fase-edit > .link { margin-left: 32px; }
 .fasen-voet { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
@@ -404,8 +404,8 @@ textarea { width: 100%; resize: vertical; }
   .sidebar { position: static; height: auto; }
   .content { padding: 20px 16px; }
   .stepper { grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); row-gap: 16px; }
-  .fase-edit-kop { grid-template-columns: auto 1fr auto auto auto; }
-  .fase-edit-kop input + input { grid-column: 2 / -1; grid-row: 2; }
+  .fase-edit-kop { grid-template-columns: auto auto 1fr auto auto auto; }
+  .fase-edit-kop input + input { grid-column: 3 / -1; grid-row: 2; }
 }
 
 /* Focus & top 5 (overzicht) */
@@ -1746,9 +1746,9 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 .nieuw-project { display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 @media (max-width: 760px) { .nieuw-project { grid-template-columns: 1fr; } }
 
-.dossier-top { margin-bottom: 18px; align-items: start; }
+.dossier-top { margin: 24px 0 18px; align-items: start; }
 .section-row { margin-bottom: 10px; }
-.dossier-top .section-row { margin-top: 0; }
+.dossier-top .section-row { margin-top: 0; min-height: 40px; }
 
 .sv-eigen-kop { font-size: 12px; color: var(--muted); margin: 14px 0 4px; text-transform: none; }
 .sv-eigen-knop { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
@@ -1810,3 +1810,27 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 [data-theme="dark"] .btn, [data-theme="dark"] .sidebar a, [data-theme="dark"] .klant-vakje, [data-theme="dark"] .tabs a { color: var(--text); }
 [data-theme="dark"] .btn.primary { color: #0b1220; }
 [data-theme="dark"] .fase-pil, [data-theme="dark"] .board-col-head .fase-pil { filter: none; background: rgba(255,255,255,.07) !important; color: #e7ebf1 !important; }
+
+/* Fasen-editor: slepen */
+.sleep-greep { cursor: grab; color: var(--muted); font-size: 13px; letter-spacing: -2px; padding: 4px 4px; user-select: none; border-radius: 6px; }
+.sleep-greep:hover { background: rgba(12,22,37,.06); color: var(--text, var(--navy)); }
+.sleep-greep:active { cursor: grabbing; }
+.fase-edit.sleept, .fase-edit-stappen li.sleept { opacity: .45; }
+.fase-edit.doel { box-shadow: 0 0 0 2px var(--navy); }
+.fase-edit-stappen li.doel { box-shadow: inset 0 2px 0 var(--navy); }
+.stap-neerzet { margin: 4px 0 6px 28px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: 12.5px; color: var(--muted); }
+.stap-neerzet.doel { border-color: var(--navy); color: var(--navy); }
+
+/* Dossier: projecten met elk een eigen traject */
+.traject-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.traject-tab { display: grid; gap: 2px; text-align: left; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: transparent; cursor: pointer; font: inherit; color: inherit; min-width: 180px; }
+.traject-tab strong { font-weight: 600; font-size: 14px; }
+.traject-tab:hover { background: rgba(12,22,37,.04); }
+.traject-tab.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+.traject-tab.on .muted { color: rgba(255,255,255,.7); }
+.traject-tab.nieuw { display: inline-flex; align-items: center; gap: 6px; min-width: 0; border-style: dashed; color: var(--muted); }
+.traject-kaart .nieuw-project { margin-bottom: 14px; }
+.traject-kaart .fasen-kop { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+[data-theme="dark"] .traject-tab.on { background: #e7ebf1; color: #0b1220; border-color: #e7ebf1; }
+[data-theme="dark"] .traject-tab.on .muted { color: #44506a; }
+@media (max-width: 760px) { .traject-tab { min-width: 0; flex: 1 1 100%; } }

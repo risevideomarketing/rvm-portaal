@@ -24,20 +24,24 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
-    const { data } = supabase.auth.onAuthStateChange((_e, sess) => setSession(sess))
+    // Bij een token-verversing blijft het dezelfde gebruiker: de bestaande sessie houden we dan gewoon aan
+    const { data } = supabase.auth.onAuthStateChange((_e, sess) => setSession((oud) => (oud && sess && oud.user.id === sess.user.id ? oud : sess)))
     return () => data.subscription.unsubscribe()
   }, [])
 
+  // Alleen opnieuw laden als er écht iemand anders inlogt. Supabase ververst het token als je terugkomt
+  // naar dit tabblad (nieuw sessie-object): dan niet het laadscherm tonen, anders begint de app opnieuw.
+  const userId = session?.user.id
   useEffect(() => {
-    if (!supabase || !session) return
+    if (!supabase || !userId) return
     setProfile(undefined)
     supabase
       .from('profiles')
       .select('person, role, email, client_id')
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => setProfile((data as Profile) ?? null))
-  }, [session])
+  }, [userId])
 
   if (!supabase) return <StoreProvider>{children}</StoreProvider>
   if (session === undefined || (session && profile === undefined)) return <Splash text="Laden…" />
