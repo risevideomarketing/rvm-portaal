@@ -21,7 +21,9 @@ export async function googleToken(scope: string): Promise<string> {
     exp: nu + 3600,
   })}`
   // In Netlify geplakt als één regel met letterlijke \n (zoals in het JSON-bestand), eventueel met aanhalingstekens eromheen
-  const sleutel = env('GOOGLE_SERVICE_ACCOUNT_KEY').trim().replace(/^"|"$/g, '').replace(/\\n/g, '\n')
+  // Mag ook het hele JSON-bestand zijn: dan nemen we private_key eruit
+  const ruw = env('GOOGLE_SERVICE_ACCOUNT_KEY').trim()
+  const sleutel = (ruw.startsWith('{') ? (JSON.parse(ruw) as { private_key: string }).private_key : ruw.replace(/^"|"$/g, '')).replace(/\\n/g, '\n')
   const handtekening = createSign('RSA-SHA256').update(ongetekend).sign(sleutel).toString('base64url')
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',

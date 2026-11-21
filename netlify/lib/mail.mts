@@ -43,7 +43,7 @@ export async function stuurMail({ aan, onderwerp, html, tekst, koppen = [], bijl
 
   const grens = `rise-${Date.now().toString(36)}`
   const bericht = [
-    `From: ${kop('Rise Video Marketing')} <${user}>`,
+    `From: ${kop('Rise | Video Marketing Agency')} <${user}>`,
     `To: ${ontvangers.join(', ')}`,
     'Reply-To: hello@risevideomarketing.nl',
     ...koppen,
@@ -96,31 +96,28 @@ export async function stuurMail({ aan, onderwerp, html, tekst, koppen = [], bijl
 
 /** Mail in Rise-stijl: rustig, persoonlijk en premium (zelfde opmaak als de inlogmail). Klanten moeten zich in de watten gelegd voelen. */
 export function riseMail({ titel, intro, blokHtml, knop, url, naKnop = '', voet = '', aanhef, afzender = true }: { titel: string; intro: string; blokHtml: string; knop: string; url: string; naKnop?: string; voet?: string; aanhef?: string; afzender?: boolean }) {
-  return `<div style="background:#EEECE5;padding:40px 16px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0C1625">
-  <div style="max-width:560px;margin:0 auto">
-    <div style="padding:0 4px 22px"><img src="https://app.risevideomarketing.nl/img/logo-navy.png" alt="Rise Video Marketing" width="96" style="display:block;border:0"></div>
-    <div style="background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 1px 2px rgba(12,22,37,.04)">
-      <div style="height:6px;background:linear-gradient(90deg,#0C1625,#3A4F6B,#D3DFE6)"></div>
-      <div style="padding:40px 40px 36px">
-        ${aanhef ? `<p style="font-size:16px;line-height:1.6;margin:0 0 18px;color:#2C2C2C">${aanhef}</p>` : ''}
-        <h1 style="font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em;margin:0 0 14px;color:#0C1625">${titel}</h1>
-        <p style="font-size:16px;line-height:1.65;margin:0 0 24px;color:#3B4656">${intro}</p>
-        ${blokHtml}
-        <p style="margin:30px 0 0"><a href="${url}" style="background:#0C1625;color:#ffffff;text-decoration:none;padding:15px 30px;border-radius:999px;display:inline-block;font-size:15px;font-weight:600;letter-spacing:.01em">${knop}</a></p>
-        ${naKnop ? `<p style="font-size:14px;line-height:1.6;margin:22px 0 0;color:#667185">${naKnop}</p>` : ''}
-        ${afzender ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:34px 0 0;border-top:1px solid #E8E6DF;padding-top:24px;width:100%"><tr>
-          <td style="width:52px;vertical-align:top;padding-top:24px"><img src="https://app.risevideomarketing.nl/img/team/daan-mail.jpg" alt="" width="44" height="44" style="display:block;border-radius:50%;border:0"></td>
-          <td style="vertical-align:top;padding-top:24px;font-size:14px;line-height:1.5;color:#3B4656">Hartelijke groet,<br><strong style="color:#0C1625">Daan Schuurmans</strong><br>Creative Producer · Rise Video Marketing<br><a href="tel:+31640750113" style="color:#3B4656;text-decoration:none">+31 6 40 75 01 13</a></td>
-        </tr></table>` : ''}
-      </div>
+  return `<div style="background:#F3F3F3;padding:40px 16px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#0C1625">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E4E6EA;border-radius:22px;overflow:hidden">
+    <div style="background:#0C1625;padding:30px 40px"><img src="https://app.risevideomarketing.nl/img/logo-wit.png" alt="Rise" width="88" height="26" style="display:block;border:0"></div>
+    <div style="padding:40px 40px 32px">
+      ${aanhef ? `<p style="font-size:17px;line-height:1.6;margin:0 0 18px;color:#2C3542">${aanhef}</p>` : ''}
+      <h1 style="font-size:26px;line-height:1.25;font-weight:700;margin:0 0 14px;color:#0C1625">${titel}</h1>
+      <p style="font-size:17px;line-height:1.6;margin:0 0 24px;color:#2C3542">${intro}</p>
+      ${blokHtml}
+      <p style="margin:30px 0 0"><a href="${url}" style="background:#0C1625;color:#ffffff;text-decoration:none;padding:16px 28px;border-radius:12px;display:inline-block;font-size:16px;font-weight:700">${knop}</a></p>
+      ${naKnop ? `<div style="background:#F3F3F3;border-radius:16px;padding:18px 22px;margin:28px 0 0;font-size:14px;line-height:1.6;color:#667185">${naKnop}</div>` : ''}
+      ${afzender ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:32px 0 0;width:100%"><tr>
+        <td style="width:56px;vertical-align:top"><img src="https://app.risevideomarketing.nl/img/team/daan-mail.jpg" alt="" width="44" height="44" style="display:block;border-radius:50%;border:0"></td>
+        <td style="vertical-align:top;font-size:14px;line-height:1.5;color:#2C3542">Hartelijke groet,<br><strong style="color:#0C1625">Daan Schuurmans</strong><br>Creative Producer · Rise Video Marketing<br><a href="tel:+31640750113" style="color:#2C3542;text-decoration:none">+31 6 40 75 01 13</a></td>
+      </tr></table>` : ''}
     </div>
-    <p style="font-size:12px;line-height:1.6;color:#8895A8;margin:20px 4px 0;text-align:center">Rise Video Marketing · Havenweg 21T, Amersfoort · <a href="https://risevideomarketing.nl" style="color:#8895A8">risevideomarketing.nl</a>${voet ? `<br>${voet}` : ''}</p>
+    <div style="border-top:1px solid #E4E6EA;padding:20px 40px;font-size:13px;line-height:1.6;color:#8895A8">Rise Video Marketing · <a href="https://risevideomarketing.nl" style="color:#8895A8">risevideomarketing.nl</a>${voet ? `<br>${voet}` : ''}</div>
   </div>
 </div>`
 }
 
 /** Eén regel in een rustig lijstje (voor in blokHtml). */
-export const mailPunt = (titel: string, tekst: string) => `<tr><td style="padding:12px 0;border-bottom:1px solid #F0EEE8;vertical-align:top;width:26px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#B2BFC9;margin-top:7px"></span></td><td style="padding:12px 0;border-bottom:1px solid #F0EEE8;font-size:15px;line-height:1.55;color:#3B4656"><strong style="color:#0C1625">${titel}</strong><br>${tekst}</td></tr>`
+export const mailPunt = (titel: string, tekst: string) => `<tr><td style="padding:12px 0;border-bottom:1px solid #EDEEF0;vertical-align:top;width:26px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#B2BFC9;margin-top:7px"></span></td><td style="padding:12px 0;border-bottom:1px solid #EDEEF0;font-size:15px;line-height:1.55;color:#3B4656"><strong style="color:#0C1625">${titel}</strong><br>${tekst}</td></tr>`
 
 /** Voornaam uit "Manon de Vries" of "Manon & Cora"; leeg als er niets is. */
 export const voornaam = (naam?: string) => (naam ?? '').trim().split(/\s+/)[0] ?? ''
