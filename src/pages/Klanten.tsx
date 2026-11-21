@@ -137,7 +137,9 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
 
       <div className="two-col">
         <div>
-          <h3 className="section-title">Taken voor deze klant</h3>
+          <KlantProjecten client={client} go={go} />
+
+          <h3 className="section-title" style={{ marginTop: 18 }}>Taken voor deze klant</h3>
           <SnelleTaak clientId={client.id} />
           <div className="card flush"><TaskTable tasks={tasks.filter((t) => t.status !== 'klaar')} onOpen={setTask} showClient={false} /></div>
           {tasks.some((t) => t.status === 'klaar') && <p className="muted small">{tasks.filter((t) => t.status === 'klaar').length} afgeronde taken verborgen.</p>}
@@ -154,8 +156,6 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
 
           <h3 className="section-title" style={{ marginTop: 18 }}>Planning <span className="muted small">(ook zichtbaar voor de klant)</span></h3>
           <fieldset className="kaal" disabled={!kan('klanten_bewerken')}><Planning client={client} update={update} /></fieldset>
-
-          <KlantProjecten client={client} go={go} />
 
           {kan('geld') && (
             <>
@@ -577,19 +577,28 @@ function KlantProjecten({ client, go }: { client: Client; go: (r: string) => voi
   const { s, d } = useStore()
   const kan = useMag()
   const lijst = s.projects.filter((p) => p.soort === 'productie' && p.clientId === client.id)
+  const [nieuwOpen, setNieuwOpen] = useState(false)
+  const [naam, setNaam] = useState('')
+  const [dienst, setDienst] = useState('')
   const nieuw = () => {
-    const naam = window.prompt(`Nieuw project voor ${client.name}, bijv. "Ads december"`)?.trim()
-    if (!naam) return
+    if (!naam.trim()) return
     const id = uid()
-    d({ type: 'project:upsert', project: { id, name: naam, soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', wie: [s.me], createdAt: new Date().toISOString(), updates: [] } })
-    go(`productie/${id}`)
+    d({ type: 'project:upsert', project: { id, name: naam.trim(), soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', wie: [s.me], createdAt: new Date().toISOString(), updates: [], ...(dienst ? { notities: `Dienst: ${dienst}` } : {}) } })
+    setNaam(''); setDienst(''); setNieuwOpen(false)
   }
   return (
     <>
-      <div className="section-row" style={{ marginTop: 18 }}>
-        <h3 className="section-title">Projecten <span className="muted small">(Productie)</span></h3>
-        {kan('projecten') && <button className="btn small" onClick={nieuw}><Icon name="plus" size={14} /> Project</button>}
+      <div className="section-row">
+        <h3 className="section-title">Projecten <span className="muted small">({lijst.length}, ook als status in het portaal)</span></h3>
+        {kan('projecten') && <button className="btn small primary" onClick={() => setNieuwOpen(!nieuwOpen)}><Icon name="plus" size={14} /> Project</button>}
       </div>
+      {nieuwOpen && (
+        <div className="card nieuw-project">
+          <input autoFocus placeholder={`Naam, bijv. "Campagne voorjaar" of "Aftermovie gala"`} value={naam} onChange={(e) => setNaam(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') nieuw(); if (e.key === 'Escape') setNieuwOpen(false) }} />
+          <select value={dienst} onChange={(e) => setDienst(e.target.value)}><option value="">Soort (optioneel)</option>{TRAJECTEN.map((t) => <option key={t.naam} value={t.naam}>{t.naam}</option>)}</select>
+          <button className="btn small primary" disabled={!naam.trim()} onClick={nieuw}>Toevoegen</button>
+        </div>
+      )}
       <div className="card flush">
         {lijst.length === 0 && <p className="muted small" style={{ padding: '12px 16px', margin: 0 }}>Nog geen content in productie voor {client.name}.</p>}
         {lijst.map((p) => {

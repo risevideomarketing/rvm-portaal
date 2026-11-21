@@ -7,6 +7,7 @@ import { FrameEmbed } from '../components/FrameEmbed'
 import { StrippenkaartKlant, stripTelling } from '../components/Strippenkaart'
 import { Icon } from '../components/ui'
 import { faseVan, fasenVan } from '../data/mock'
+import { NotionInhoud } from '../components/NotionInhoud'
 import { artikelenNu } from '../kennis'
 import type { Client, ContentItem, KlantTaak, ProductieFase } from '../data/types'
 import { bronVan, pakketNaam } from '../utils'
@@ -52,7 +53,7 @@ function gegevens(client: Client) {
     volgendeContent: content.filter((i) => i.datum && i.datum >= vandaag).sort((a, b) => a.datum!.localeCompare(b.datum!))[0],
     volgendePlanning: planning.filter((p) => p.date >= vandaag).sort((a, b) => a.date.localeCompare(b.date))[0],
     links: (client.links ?? []).filter((l) => l.klant),
-    kennis: artikelenNu().filter((a) => a.klant),
+    kennis: artikelenNu().filter((a) => a.klant && (!a.klanten?.length || a.klanten.includes(client.id))),
     pakket: client.pakket ? pakketNaam(client.pakket) : '',
   }
 }
@@ -128,8 +129,7 @@ function Kennis({ g }: { g: G }) {
         <details key={a.id}>
           <summary><Icon name="book" size={15} /><span>{a.title}</span></summary>
           <p className="pi-sub">{a.summary}</p>
-          {a.steps && <ol>{a.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>}
-          {a.body.map((p, i) => <p key={i} className="pi-sub">{p}</p>)}
+          {a.notion ? <NotionInhoud md={a.notion} afb={a.afbeeldingen} /> : <>{a.steps && <ol>{a.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>}{a.body.map((p, i) => <p key={i} className="pi-sub">{p}</p>)}</>}
           {a.videoUrl && <a className="link small" href={a.videoUrl} target="_blank" rel="noreferrer">Bekijk de uitlegvideo</a>}
         </details>
       ))}
@@ -566,7 +566,7 @@ function Service(p: P) {
     .slice(0, 6)
   const volgende = g.komend.find((m) => m.soort !== 'taak')
   const heeftKalender = (client.kanalen ?? []).length > 0
-  const [tab, setTab] = useState<'overzicht' | 'offertes' | 'strippenkaart'>('overzicht')
+  const [tab, setTab] = useState<'overzicht' | 'content' | 'geld' | 'strippenkaart'>('overzicht')
   const status = g.open.length
     ? `Wij regelen de rest. Er ${g.open.length === 1 ? 'staat één ding' : `staan ${g.open.length} dingen`} voor je klaar, verder hoef je niets te doen.`
     : 'Je hoeft niets te doen. Wij zijn aan de slag en houden je hier op de hoogte.'
@@ -579,11 +579,22 @@ function Service(p: P) {
 
       <div className="pl-tabs pi-tabs sv-tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'overzicht'} className={tab === 'overzicht' ? 'on' : ''} onClick={() => setTab('overzicht')}>Overzicht</button>
-        {p.facturen && <button role="tab" aria-selected={tab === 'offertes'} className={tab === 'offertes' ? 'on' : ''} onClick={() => setTab('offertes')}>Offertes</button>}
+        <button role="tab" aria-selected={tab === 'content'} className={tab === 'content' ? 'on' : ''} onClick={() => setTab('content')}>Content & Deliverables</button>
+        {p.facturen && <button role="tab" aria-selected={tab === 'geld'} className={tab === 'geld' ? 'on' : ''} onClick={() => setTab('geld')}>Offertes & Facturen</button>}
         <button role="tab" aria-selected={tab === 'strippenkaart'} className={tab === 'strippenkaart' ? 'on' : ''} onClick={() => setTab('strippenkaart')}>Strippenkaart{client.strippenkaart ? ` · ${String(stripTelling(client.strippenkaart).over).replace('.', ',')} over` : ''}</button>
       </div>
 
-      {tab === 'offertes' ? <><OffertesKaart clientId={client.id} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : tab === 'strippenkaart' ? <><StrippenkaartKlant client={client} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : <>
+      {tab === 'content' ? <>
+        <section className="portal-card dark sv-opgeleverd sv-frame-groot">
+          <Icon name="play" size={22} />
+          <h3>Content & Deliverables</h3>
+          <p>Al je video's en bestanden. Bekijken, downloaden en reageren kan direct hier, zonder account.</p>
+          {client.frameUrl ? <FrameEmbed url={client.frameUrl} donker /> : <span className="small portal-content-leeg">Hier verschijnen je video's zodra de eerste versie klaarstaat.</span>}
+          {client.frameUrl && <a className="btn light small" href={client.frameUrl} target="_blank" rel="noreferrer">Openen op volledig scherm <Icon name="external" size={13} /></a>}
+        </section>
+        {heeftKalender && <section className="portal-card"><Icon name="calendar" size={22} /><h3>Contentkalender</h3><p className="muted">Wat we wanneer voor je plaatsen. Klik op een item voor de volledige tekst.</p><ContentKalender client={client} klant /></section>}
+        <section className="portal-card"><Icon name="note" size={22} /><h3>Bestanden & links</h3><Bestanden g={g} /></section>
+      </> : tab === 'geld' ? <><OffertesKaart clientId={client.id} /><FacturenKaart clientId={client.id} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : tab === 'strippenkaart' ? <><StrippenkaartKlant client={client} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : <>
       <section className="sv-hero">
         <div className="sv-hero-tekst">
           <span className="sv-kicker">Status{g.pakket ? ` · ${g.pakket}` : ''}</span>
@@ -618,14 +629,6 @@ function Service(p: P) {
           </li>
         ))}
       </ol>
-
-        <section className="portal-card dark sv-opgeleverd sv-breed">
-          <Icon name="play" size={22} />
-          <h3>Je video's</h3>
-          <p>Bekijken, downloaden en reageren. Alles staat klaar in Frame.io, je hebt geen account nodig.</p>
-          {client.frameUrl ? <FrameEmbed url={client.frameUrl} donker /> : <span className="small portal-content-leeg">Hier verschijnen je video's zodra de eerste versie klaarstaat.</span>}
-          {klaar.length > 0 && <ul className="sv-klaar">{klaar.map((x) => <li key={x.id}><Icon name="check" size={13} />{x.name}</li>)}</ul>}
-        </section>
 
       <div className="portal-grid portal-grid-2 sv-rij">
         <section className="portal-card sv-werk">
@@ -665,18 +668,23 @@ function Service(p: P) {
         <KlantToevoegen client={client} onToevoegen={p.onToevoegen} />
       </div>
 
-      {heeftKalender && <section className="portal-card"><Icon name="calendar" size={22} /><h3>Contentkalender</h3><p className="muted">Wat we wanneer voor je plaatsen. Klik op een item voor de volledige tekst.</p><ContentKalender client={client} klant /></section>}
+        <section className="portal-card dark sv-opgeleverd sv-breed">
+          <Icon name="play" size={22} />
+          <h3>Je video's</h3>
+          <p>Bekijken, downloaden en reageren. Alles staat klaar in Frame.io, je hebt geen account nodig.</p>
+          {client.frameUrl ? <FrameEmbed url={client.frameUrl} donker /> : <span className="small portal-content-leeg">Hier verschijnen je video's zodra de eerste versie klaarstaat.</span>}
+          {client.frameUrl && <button className="btn light small" onClick={() => setTab('content')}>Alles bekijken in Content & Deliverables</button>}
+          {klaar.length > 0 && <ul className="sv-klaar">{klaar.map((x) => <li key={x.id}><Icon name="check" size={13} />{x.name}</li>)}</ul>}
+        </section>
 
-      <div className="portal-grid portal-grid-2 sv-rij">
-        <section className="portal-card"><Icon name="note" size={22} /><h3>Bestanden & links</h3><Bestanden g={g} /></section>
-        {p.facturen ? <FacturenKaart clientId={client.id} /> : <section className="portal-card"><Icon name="book" size={22} /><h3>Handig om te weten</h3><Kennis g={g} /></section>}
-      </div>
+
+      {heeftKalender && <section className="portal-card"><Icon name="calendar" size={22} /><h3>Contentkalender</h3><p className="muted">Wat we wanneer voor je plaatsen. Klik op een item voor de volledige tekst.</p><ContentKalender client={client} klant /></section>}
 
       {client.metaAdAccount && <WeekResultaten client={client} />}
 
       <HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} />
 
-      {p.facturen && g.kennis.length > 0 && <section className="portal-card"><Icon name="book" size={22} /><h3>Handig om te weten</h3><Kennis g={g} /></section>}
+      {g.kennis.length > 0 && <section className="portal-card"><Icon name="book" size={22} /><h3>Handig om te weten</h3><Kennis g={g} /></section>}
       </>}
     </div>
   )

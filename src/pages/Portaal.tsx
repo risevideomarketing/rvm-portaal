@@ -3,6 +3,7 @@ import { Progress } from '../components/charts'
 import { WeekResultaten } from '../components/Weekcijfers'
 import { Icon, PageHead, Segmented, SkeletRegels } from '../components/ui'
 import { faseVan, fasenVan } from '../data/mock'
+import { NotionInhoud } from '../components/NotionInhoud'
 import { artikelenNu, useArtikelen } from '../kennis'
 import type { Client, ContentPlek, Hulpvraag, KlantTaak } from '../data/types'
 import { mag, useStore } from '../store'
@@ -360,7 +361,7 @@ function PortaalHuidig({ client, actions, onTaak, onContent, onVraag, facturen =
     .filter((p) => p.date >= vandaag)
     .sort((a, b) => a.date.localeCompare(b.date))
   const links = (client.links ?? []).filter((l) => l.klant)
-  const kennis = artikelenNu().filter((a) => a.klant)
+  const kennis = artikelenNu().filter((a) => a.klant && (!a.klanten?.length || a.klanten.includes(client.id)))
 
   return (
     <div className="portal">
@@ -452,8 +453,7 @@ function PortaalHuidig({ client, actions, onTaak, onContent, onVraag, facturen =
             {kennis.map((a) => (
               <details key={a.id}>
                 <summary>{a.title} <span className="muted small">· {a.summary}</span></summary>
-                {a.steps && <ol>{a.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>}
-                {a.body.map((p, i) => <p key={i} className="small">{p}</p>)}
+                {a.notion ? <NotionInhoud md={a.notion} afb={a.afbeeldingen} /> : <>{a.steps && <ol>{a.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>}{a.body.map((p, i) => <p key={i} className="small">{p}</p>)}</>}
                 {a.videoUrl && <a className="link small" href={a.videoUrl} target="_blank" rel="noreferrer">Bekijk de uitlegvideo</a>}
               </details>
             ))}
