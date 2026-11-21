@@ -64,7 +64,9 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
   const { s, d } = useStore()
   const [task, setTask] = useState<Task | null>(null)
   const contact = s.contacts.find((c) => c.id === client.contactId)
-  const tasks = s.tasks.filter((t) => t.clientId === client.id || (client.contactId && t.contactId === client.contactId)).sort((a, b) => a.deadline.localeCompare(b.deadline))
+  // Taken van een project staan op de projectpagina; hier alleen de losse taken voor deze klant (nooit dubbel)
+  const projectIds = new Set(s.projects.filter((p) => p.clientId === client.id).map((p) => p.id))
+  const tasks = s.tasks.filter((t) => (t.clientId === client.id || (client.contactId && t.contactId === client.contactId)) && !(t.projectId && projectIds.has(t.projectId))).sort((a, b) => a.deadline.localeCompare(b.deadline))
   const update = (patch: Partial<Client>) => d({ type: 'client:upsert', client: { ...client, ...patch } })
 
   return (
@@ -98,7 +100,7 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
 
       <div className="two-col">
         <div>
-          <h3 className="section-title">Onze taken</h3>
+          <h3 className="section-title">Losse taken <span className="muted small">(taken van een project staan bij dat project)</span></h3>
           <SnelleTaak clientId={client.id} />
           <div className="card flush"><TaskTable tasks={tasks.filter((t) => t.status !== 'klaar')} onOpen={setTask} showClient={false} /></div>
           {tasks.some((t) => t.status === 'klaar') && <p className="muted small">{tasks.filter((t) => t.status === 'klaar').length} afgeronde taken verborgen.</p>}
@@ -212,8 +214,8 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
 
 type Update = (patch: Partial<Client>) => void
 /** Alles met een traject: een klant (algemeen) of een project. */
-type MetTraject = { name: string; phases?: Phase[]; doneSteps: string[]; phase: number }
-type TrajectPatch = { phases?: Phase[]; doneSteps?: string[]; phase?: number }
+export type MetTraject = { name: string; phases?: Phase[]; doneSteps: string[]; phase: number }
+export type TrajectPatch = { phases?: Phase[]; doneSteps?: string[]; phase?: number }
 
 type ConceptStap = { id: string; text: string; /** Oorspronkelijke tekst, om het vinkje mee te nemen bij hernoemen. */ orig?: string }
 type ConceptFase = Omit<Phase, 'steps'> & { steps: ConceptStap[] }
@@ -571,7 +573,7 @@ function WeekNu({ client }: { client: Client }) {
 
 /** Productiefase op het bord (en de status in het portaal) afgeleid van de fase in het traject. */
 const BORD_FASE: Record<string, 'productie' | 'filmen' | 'edit1' | 'edit2' | 'feedback' | 'live'> = { kennismaking: 'productie', voorstel: 'productie', preproductie: 'productie', opnames: 'filmen', montage: 'edit1', feedback: 'edit2', oplevering: 'live' }
-const bordFase = (fasen: Phase[], i: number) => {
+export const bordFase = (fasen: Phase[], i: number) => {
   const k = fasen[i]?.key
   if (k && BORD_FASE[k]) return BORD_FASE[k]
   const r = fasen.length > 1 ? i / (fasen.length - 1) : 0
@@ -580,72 +582,64 @@ const bordFase = (fasen: Phase[], i: number) => {
 const dienstVan = (p: Project) => (p.notities ?? '').match(/Dienst: (.+)/)?.[1]?.trim()
 
 /** Traject van een project; bestaande projecten zonder eigen traject erven dat van de klant (als het het enige project is) of het sjabloon van hun dienst. */
-function trajectVan(p: Project, client: Client, enige: boolean): MetTraject {
+export function trajectVan(p: Project, client: Client | undefined, enige: boolean): MetTraject {
   if (p.phases?.length) return { name: p.name, phases: p.phases, doneSteps: p.doneSteps ?? [], phase: p.phase ?? 0 }
-  if (enige && client.phases?.length) return { name: p.name, phases: client.phases, doneSteps: client.doneSteps, phase: client.phase }
+  if (enige && client?.phases?.length) return { name: p.name, phases: client.phases, doneSteps: client.doneSteps, phase: client.phase }
   const sjabloon = TRAJECTEN.find((t) => t.naam === dienstVan(p))?.fasen ?? PHASES
   return { name: p.name, phases: sjabloon, doneSteps: p.doneSteps ?? [], phase: p.phase ?? 0 }
 }
 
-/** Bovenaan het dossier: elk project met zijn eigen traject (fasen en stappen). */
+/** Bovenaan het dossier: de projecten van deze klant als compacte kaarten. Het traject, de taken en bestanden staan op de projectpagina. */
 function ProjectTrajecten({ client, go }: { client: Client; go: (r: string) => void }) {
   const { s, d } = useStore()
   const kan = useMag()
-  const lijst = s.projects.filter((p) => p.soort === 'productie' && p.clientId === client.id)
-  const [gekozen, setGekozen] = useState<string>(() => (lijst.find((p) => p.fase !== 'live') ?? lijst[0])?.id ?? 'klant')
+  const lijst = s.projects.filter((p) => p.soort === 'productie' && p.clientId === client.id).sort((a, b) => Number(a.fase === 'live') - Number(b.fase === 'live') || (a.deadline ?? '9').localeCompare(b.deadline ?? '9'))
   const [nieuwOpen, setNieuwOpen] = useState(false)
   const [naam, setNaam] = useState('')
   const [dienst, setDienst] = useState('')
-  const project = lijst.find((p) => p.id === gekozen)
-
   const nieuw = () => {
     if (!naam.trim()) return
     const id = uid()
     const fasen = TRAJECTEN.find((t) => t.naam === dienst)?.fasen ?? PHASES
-    d({ type: 'project:upsert', project: { id, name: naam.trim(), soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', wie: [s.me], createdAt: new Date().toISOString(), updates: [], phases: fasen, doneSteps: [], phase: 0, ...(dienst ? { notities: `Dienst: ${dienst}` } : {}) } })
-    setNaam(''); setDienst(''); setNieuwOpen(false); setGekozen(id)
+    d({ type: 'project:upsert', project: { id, name: naam.trim(), soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', wie: [s.me], createdAt: new Date().toISOString(), updates: [], phases: fasen, doneSteps: [], phase: 0 } })
+    go(`productie/${id}`)
   }
-
-  const doel: MetTraject = project ? trajectVan(project, client, lijst.length === 1) : { name: client.name, phases: client.phases, doneSteps: client.doneSteps, phase: client.phase }
-  const update = (patch: TrajectPatch) => {
-    if (!project) return d({ type: 'client:upsert', client: { ...client, ...patch } })
-    const volledig = { phases: doel.phases ?? PHASES, doneSteps: doel.doneSteps, phase: doel.phase, ...patch }
-    d({ type: 'project:upsert', project: { ...project, ...volledig, fase: bordFase(volledig.phases, volledig.phase) } })
-  }
-
   return (
     <div className="card traject-kaart">
-      <div className="traject-tabs">
-        {lijst.map((p) => {
-          const t = trajectVan(p, client, lijst.length === 1)
-          const f = fasenVan(t)
-          return (
-            <button key={p.id} className={`traject-tab ${gekozen === p.id ? 'on' : ''}`} onClick={() => setGekozen(p.id)}>
-              <strong>{p.name}</strong>
-              <span className="muted small">{p.fase === 'live' ? 'Opgeleverd' : `${faseVan(t).label} · ${Math.min(t.phase + 1, f.length)}/${f.length}`}</span>
-            </button>
-          )
-        })}
-        {kan('projecten') && <button className="traject-tab nieuw" onClick={() => setNieuwOpen(!nieuwOpen)}><Icon name="plus" size={14} /> Project</button>}
+      <div className="section-row" style={{ marginTop: 0 }}>
+        <h3 className="section-title">Projecten <span className="muted small">({lijst.length})</span></h3>
+        {kan('projecten') && <button className="btn small primary" onClick={() => setNieuwOpen(!nieuwOpen)}><Icon name="plus" size={14} /> Project</button>}
       </div>
       {nieuwOpen && (
         <div className="nieuw-project">
-          <input autoFocus placeholder={`Naam, bijv. "Strijkviertel videoproductie" of "Aftermovie gala"`} value={naam} onChange={(e) => setNaam(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') nieuw(); if (e.key === 'Escape') setNieuwOpen(false) }} />
+          <input autoFocus placeholder={`Naam, bijv. "Strijkviertel videoproductie"`} value={naam} onChange={(e) => setNaam(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') nieuw(); if (e.key === 'Escape') setNieuwOpen(false) }} />
           <select value={dienst} onChange={(e) => setDienst(e.target.value)}><option value="">Traject: standaard</option>{TRAJECTEN.map((t) => <option key={t.naam} value={t.naam}>{t.naam}</option>)}</select>
-          <button className="btn small primary" disabled={!naam.trim()} onClick={nieuw}>Toevoegen</button>
+          <button className="btn small primary" disabled={!naam.trim()} onClick={nieuw}>Aanmaken</button>
         </div>
       )}
-      {project ? (
-        <TrajectKaart key={project.id} doel={doel} update={update} kanBewerken={kan('projecten')} kop={<button className="link small" onClick={() => go(`productie/${project.id}`)}>Open project →</button>} />
-      ) : (
-        !nieuwOpen && <p className="muted" style={{ margin: 0 }}>Nog geen project voor {client.name}. Maak er een aan met "+ Project": elk project krijgt zijn eigen traject met fasen en stappen.</p>
-      )}
+      {lijst.length === 0 && !nieuwOpen && <p className="muted" style={{ margin: 0 }}>Nog geen project voor {client.name}. Elk project krijgt zijn eigen traject, taken en bestanden.</p>}
+      <div className="dossier-projecten">
+        {lijst.map((p) => {
+          const t = trajectVan(p, client, lijst.length === 1)
+          const f = fasenVan(t)
+          const open = s.tasks.filter((x) => x.projectId === p.id && x.status !== 'klaar').length
+          const klaar = p.fase === 'live' || t.phase >= f.length - 1 && faseVan(t).steps.every((st) => t.doneSteps.includes(st))
+          return (
+            <button key={p.id} className={`dossier-project ${klaar ? 'klaar' : ''}`} onClick={() => go(`productie/${p.id}`)}>
+              <strong>{p.name}</strong>
+              <span className="muted small">{klaar ? 'Opgeleverd' : `${faseVan(t).label} · fase ${Math.min(t.phase + 1, f.length)} van ${f.length}`}</span>
+              <span className="mini-bar"><i style={{ width: `${((Math.min(t.phase, f.length - 1) + (klaar ? 1 : 0)) / f.length) * 100}%` }} /></span>
+              <span className="muted small">{[p.deadline ? `af vóór ${fmtDate(p.deadline)}` : null, open ? `${open} open ${open === 1 ? 'taak' : 'taken'}` : 'geen open taken'].filter(Boolean).join(' · ')}</span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 /** Stepper met checklist van één traject. */
-function TrajectKaart({ doel, update, kanBewerken, kop }: { doel: MetTraject; update: (patch: TrajectPatch) => void; kanBewerken: boolean; kop: React.ReactNode }) {
+export function TrajectKaart({ doel, update, kanBewerken, kop }: { doel: MetTraject; update: (patch: TrajectPatch) => void; kanBewerken: boolean; kop: React.ReactNode }) {
   const fasen = fasenVan(doel)
   const [view, setView] = useState(Math.min(doel.phase, fasen.length - 1))
   const [bewerken, setBewerken] = useState(false)

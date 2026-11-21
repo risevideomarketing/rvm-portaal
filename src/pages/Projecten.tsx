@@ -4,12 +4,14 @@ import { Bestanden } from '../components/Bestanden'
 import { MerkLogo } from '../components/Logo'
 import { TaskDrawer } from '../components/TaskDrawer'
 import { Avatar, Icon, LeegStaat, PageHead, PriorityBadge, Segmented, StatusBadge, personName } from '../components/ui'
-import { CONTENT_SOORTEN, INTERN_FASEN, PRODUCTIE_FASEN, PROJECT_SOORTEN, TEAM } from '../data/mock'
+import { CONTENT_SOORTEN, INTERN_FASEN, PRODUCTIE_FASEN, TEAM } from '../data/mock'
 import { ContentBord, contentVan } from '../components/ContentBord'
 import type { ContentSoort, Priority, Project, Task } from '../data/types'
 import { uid, useMag, useStore } from '../store'
 import { deadlineLabel, euro, fmtDate, slug, standaardAfVoor, teLaat } from '../utils'
 import { SnelleTaak } from './Taken'
+import { TrajectKaart, bordFase, trajectVan, type TrajectPatch } from './Klanten'
+import { PHASES } from '../data/mock'
 
 type Soort = 'productie' | 'intern'
 
@@ -140,7 +142,22 @@ export function Projecten({ soort, id, go }: { soort: Soort; id?: string; go: (r
             const col = zichtbaar.filter((p) => faseVanProject(p).key === f.key)
             return (
               <div key={f.key} className={`board-col ${drag ? 'droppable' : ''}`} style={{ background: f.kolom }} onDragOver={(e) => e.preventDefault()}
-                onDrop={() => { const p = s.projects.find((x) => x.id === drag); if (p) d({ type: 'project:upsert', project: { ...p, fase: f.key as Project['fase'] } }); setDrag(null) }}>
+                onDrop={() => {
+                  const p = s.projects.find((x) => x.id === drag)
+                  if (p) {
+                    // Productie: het traject van het project schuift mee naar de eerste fase die bij deze kolom hoort
+                    let extra: Partial<Project> = {}
+                    if (p.soort === 'productie') {
+                      const enige = s.projects.filter((x) => x.soort === 'productie' && x.clientId === p.clientId).length === 1
+                      const t = trajectVan(p, s.clients.find((c) => c.id === p.clientId), enige)
+                      const fasenT = t.phases ?? PHASES
+                      const i = fasenT.findIndex((_, j) => bordFase(fasenT, j) === f.key)
+                      if (i >= 0) extra = { phases: fasenT, doneSteps: t.doneSteps, phase: i }
+                    }
+                    d({ type: 'project:upsert', project: { ...p, ...extra, fase: f.key as Project['fase'] } })
+                  }
+                  setDrag(null)
+                }}>
                 <div className="board-col-head">
                   <span className="fase-pil" style={{ color: f.kleur, background: f.bg }}><i style={{ background: f.kleur }} />{f.label}</span>
                   <span className="count">{col.length}</span>
@@ -244,6 +261,14 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
   const wijzig = (patch: Partial<Project>) => d({ type: 'project:upsert', project: { ...project, ...patch } })
   const fasen = fasenVoor(soort)
   const klant = s.clients.find((c) => c.id === project.clientId)
+  const productie = soort === 'productie'
+  // Traject (fasen en stappen) van dit project; de fase op het bord en in het portaal volgt het traject
+  const enige = s.projects.filter((p) => p.soort === 'productie' && p.clientId === project.clientId).length === 1
+  const traject = trajectVan(project, klant, enige)
+  const zetTraject = (patch: TrajectPatch) => {
+    const volledig = { phases: traject.phases ?? PHASES, doneSteps: traject.doneSteps, phase: traject.phase, ...patch }
+    wijzig({ ...volledig, fase: bordFase(volledig.phases, volledig.phase) })
+  }
 
   const plaats = () => {
     if (!tekst.trim()) return
@@ -268,11 +293,19 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
   return (
     <>
       <button className="back" onClick={() => go(route(soort))}>← {soort === 'productie' ? 'Productie' : 'Interne projecten'}</button>
-      <PageHead title={project.name} sub={klant ? <>Voor <a href={`#/klanten/${klant.id}`}>{klant.name}</a></> : project.description || (soort === 'intern' ? 'Intern project van Rise' : 'Nog geen klant gekozen')}>
-        <select className="fase-select" value={faseVanProject(project).key} onChange={(e) => wijzig({ fase: e.target.value as Project['fase'] })} disabled={!kan('projecten')}>
-          {fasen.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
-        </select>
+      <PageHead title={project.name} sub={klant ? <>Project voor <a href={`#/klanten/${klant.id}`}>{klant.name}</a> · klantdossier</> : project.description || (soort === 'intern' ? 'Intern project van Rise' : 'Nog geen klant gekozen')}>
+        {!productie && (
+          <select className="fase-select" value={faseVanProject(project).key} onChange={(e) => wijzig({ fase: e.target.value as Project['fase'] })} disabled={!kan('projecten')}>
+            {fasen.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+          </select>
+        )}
       </PageHead>
+
+      {productie && (
+        <div className="card traject-kaart" style={{ marginBottom: 18 }}>
+          <TrajectKaart key={project.id} doel={traject} update={zetTraject} kanBewerken={kan('projecten')} kop={<span className="muted small">Traject van dit project · de klant ziet de fase in het portaal</span>} />
+        </div>
+      )}
 
       <div className="two-col">
         <div>
@@ -313,8 +346,12 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
             </>
           )}
 
-          <h3 className="section-title" style={{ marginTop: 18 }}>Notities</h3>
-          <textarea className="card notitie-veld" rows={5} placeholder="Brief, script, afspraken met de klant…" value={project.notities ?? ''} onChange={(e) => wijzig({ notities: e.target.value || undefined })} />
+          {!productie && (
+            <>
+              <h3 className="section-title" style={{ marginTop: 18 }}>Notities</h3>
+              <textarea className="card notitie-veld" rows={5} placeholder="Brief, script, afspraken…" value={project.notities ?? ''} onChange={(e) => wijzig({ notities: e.target.value || undefined })} />
+            </>
+          )}
 
           <h3 className="section-title" style={{ marginTop: 18 }}>Updates</h3>
           <div className="card update-nieuw">
@@ -362,18 +399,13 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
                 </select>
               </div>
             )}
-            {soort === 'productie' && (
-              <div><span className="muted">Soort</span>
-                <select value={project.contentSoort ?? 'video'} onChange={(e) => wijzig({ contentSoort: e.target.value as ContentSoort })}>
-                  {PROJECT_SOORTEN.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            {!productie && (
+              <div><span className="muted">Prioriteit</span>
+                <select value={project.priority ?? 'middel'} onChange={(e) => wijzig({ priority: e.target.value as Priority })}>
+                  <option value="hoog">Hoog</option><option value="middel">Middel</option><option value="laag">Laag</option>
                 </select>
               </div>
             )}
-            <div><span className="muted">Prioriteit</span>
-              <select value={project.priority ?? 'middel'} onChange={(e) => wijzig({ priority: e.target.value as Priority })}>
-                <option value="hoog">Hoog</option><option value="middel">Middel</option><option value="laag">Laag</option>
-              </select>
-            </div>
             {kan('geld') && <div><span className="muted">Bedrag (ex btw)</span><input className="inline-input" type="number" min={0} step={50} placeholder="€ 0" value={project.bedrag ?? ''} onChange={(e) => wijzig({ bedrag: Number(e.target.value) || undefined })} /></div>}
             <div><span className="muted">Af vóór</span><input className="inline-input" type="date" value={project.deadline ?? ''} onChange={(e) => wijzig({ deadline: e.target.value || undefined })} /></div>
             <div><span className="muted">Wie</span>
@@ -392,14 +424,10 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
             {soort === 'intern' && <div><span className="muted">Website</span><input className="inline-input" placeholder="voor de kaartafbeelding" value={project.website ?? ''} onChange={(e) => wijzig({ website: e.target.value.trim() || undefined })} /></div>}
           </fieldset>
 
-          <h3 className="section-title" style={{ marginTop: 18 }}>Bestanden <span className="muted small">pdf's, scripts, briefs, beelden</span></h3>
+          <h3 className="section-title" style={{ marginTop: 18 }}>Bestanden & links <span className="muted small">scripts, briefs, Frame.io, Drive</span></h3>
           <div className="card">
             <Bestanden map={`project/${project.id}`} lijst={project.bestanden ?? []} onChange={(bestanden) => wijzig({ bestanden })} />
-          </div>
-
-          <h3 className="section-title" style={{ marginTop: 18 }}>Links <span className="muted small">Frame.io, Drive, Dropbox</span></h3>
-          <div className="card">
-            <ul className="bestand-lijst">
+            <ul className="bestand-lijst" style={{ marginTop: 12 }}>
               {(project.links ?? []).map((l) => (
                 <li key={l.id}>
                   <a className="bestand-naam" href={l.url} target="_blank" rel="noreferrer"><Icon name="external" size={14} /><span>{l.title}</span></a>
