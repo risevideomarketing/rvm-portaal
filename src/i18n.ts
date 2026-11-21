@@ -11,7 +11,7 @@ const DICT = {
     nav: {
       '': 'Overzicht',
       taken: 'Taken',
-      planning: 'Planning',
+      planning: 'Agenda',
       opdrachten: 'Opdrachten',
       crm: 'CRM',
       productie: 'Productie',

@@ -211,6 +211,8 @@ export interface MoneybirdCijfers {
 }
 
 /** Omzet, kosten, winst, betalingen, concept- en openstaande facturen (alleen admins). */
+export interface Offerte { id: string; nummer: string | null; datum: string | null; geldigTot: string | null; status: string; omschrijving: string; bedrag: number; klant: string; contactId: string; url: string }
+export const alleOffertes = () => haal<{ gekoppeld: boolean; offertes?: Offerte[] }>('moneybird?soort=offertes')
 export const moneybird = (periode: 'maand' | 'jaar') => haal<MoneybirdCijfers>(`moneybird?periode=${periode}`)
 
 /** Meta-cijfers over één periode (zelfde vorm als netlify/lib/meta.mts). spend -1 = verborgen voor de klant. */
@@ -263,6 +265,7 @@ export const analytics = (periode: '7d' | '30d', clientId?: string) => haal<Anal
 
 export interface Afspraak { id: string; titel: string; start: string; eind: string; heleDag: boolean; agenda: string; plek?: string; link?: string }
 /** Google Agenda: vandaag en de komende 6 dagen (team). */
+export const agendaLijst = () => haal<{ agendas: { naam: string; id: string }[] }>('mijn-agenda?lijst=1')
 export const mijnAgenda = () => haal<{ gekoppeld: boolean; afspraken: Afspraak[]; fout?: string }>('mijn-agenda')
 
 export interface StatusCheck { naam: string; ok: boolean; uitleg: string }

@@ -73,7 +73,7 @@ export function App() {
     case 'klanten': page = !id ? (mag(s, 'crm') ? <Crm go={go} /> : <GeenToegang />) : mag(s, 'klanten') ? <Klanten id={id} go={go} contentItem={mode === 'content' ? sub : undefined} /> : <GeenToegang />; break
     case 'productie': page = mag(s, 'projecten') ? <Projecten key="productie" soort="productie" id={id} go={go} /> : <GeenToegang />; break
     case 'projecten': page = mag(s, 'projecten') ? <Projecten key="intern" soort="intern" id={id} go={go} /> : <GeenToegang />; break
-    case 'crm': page = mag(s, 'crm') ? <Crm go={go} weergave={id === 'contacten' ? 'contacten' : 'pipeline'} /> : <GeenToegang />; break
+    case 'crm': page = mag(s, 'crm') ? <Crm go={go} weergave={id === 'contacten' ? 'contacten' : id === 'offertes' ? 'offertes' : 'pipeline'} /> : <GeenToegang />; break
     case 'statistieken': page = mag(s, 'statistieken') ? <Statistieken go={go} /> : <GeenToegang />; break
     case 'instellingen': page = <Instellingen />; break
     case 'kennisbank': page = <Kennisbank id={id} go={go} />; break

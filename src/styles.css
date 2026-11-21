@@ -505,7 +505,7 @@ textarea { width: 100%; resize: vertical; }
 .me-name { color: #fff; font-weight: 500; }
 .proto-banner.live { background: #e6f5ed; color: #1f7a4d; }
 
-.board.pipeline { grid-template-columns: repeat(6, minmax(170px, 1fr)); overflow-x: auto; }
+.board.pipeline { grid-template-columns: repeat(5, minmax(180px, 1fr)); overflow-x: auto; }
 .placeholder-card p { margin: 0; }
 
 /* Snel een taak toevoegen */
@@ -1681,8 +1681,8 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 .sv-velden .btn { justify-self: start; }
 .sv-bestand { display: flex; align-items: center; gap: 10px; border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; font-size: 14px; color: var(--muted); }
 .sv-bestand input { display: none; }
-.sv-eigen { list-style: none; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: grid; gap: 6px; }
-.sv-eigen li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 13.5px; }
+.sv-eigen { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.sv-eigen li { display: block; font-size: 13.5px; }
 .sv-eigen li span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Kennisbank in Notion-opmaak */
@@ -1745,3 +1745,68 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 
 .nieuw-project { display: grid; grid-template-columns: minmax(0, 1fr) 200px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 @media (max-width: 760px) { .nieuw-project { grid-template-columns: 1fr; } }
+
+.dossier-top { margin-bottom: 18px; align-items: start; }
+.section-row { margin-bottom: 10px; }
+.dossier-top .section-row { margin-top: 0; }
+
+.sv-eigen-kop { font-size: 12px; color: var(--muted); margin: 14px 0 4px; text-transform: none; }
+.sv-eigen-knop { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.sv-eigen-knop:hover { background: rgba(12,22,37,.05); }
+.sv-eigen-knop > span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Ingesloten Google Agenda */
+.google-agenda { overflow: hidden; }
+.google-agenda iframe { display: block; width: 100%; height: min(78vh, 920px); border: 0; }
+@media (max-width: 760px) { .google-agenda iframe { height: 72vh; } }
+
+/* Portaal: statusbalk per video in de hero */
+.sv-videos { list-style: none; margin: 10px 0 18px; padding: 0; display: grid; gap: 18px; }
+.sv-video-kop { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sv-video-kop strong { font-family: var(--font-display, inherit); font-size: 22px; font-weight: 500; color: #fff; }
+.sv-video-datum { font-size: 13px; color: rgba(255,255,255,.6); }
+.sv-video-stappen { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; max-width: 560px; }
+.sv-video-stappen li { display: grid; gap: 6px; }
+.sv-video-stappen i { display: block; height: 6px; border-radius: 99px; background: rgba(255,255,255,.14); }
+.sv-video-stappen li.klaar i { background: rgba(255,255,255,.75); }
+.sv-video-stappen li.nu i { background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.15); }
+.sv-video-stappen span { font-size: 11.5px; color: rgba(255,255,255,.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-video-stappen li.klaar span { color: rgba(255,255,255,.7); }
+.sv-video-stappen li.nu span { color: #fff; font-weight: 600; }
+.sv-video-nu { display: block; font-size: 14px; color: rgba(255,255,255,.85); }
+@media (max-width: 760px) { .sv-video-stappen span { font-size: 10px; } .sv-video-kop strong { font-size: 18px; } }
+
+/* CRM: klantdossiers onder de pipeline, ook als plek om opdrachten naartoe te slepen */
+.crm-dossiers { margin-top: 18px; transition: box-shadow .15s, background .15s; }
+.crm-dossiers.droppable { box-shadow: 0 0 0 2px rgba(59,115,84,.25); }
+.crm-dossiers.boven { background: #EEF5EF; box-shadow: 0 0 0 2px #3B7354; }
+.crm-dossiers .klant-vakje.boven { box-shadow: 0 0 0 2px #3B7354; background: #EEF5EF; }
+.persoon.hoofd { position: relative; }
+.persoon-weg { position: absolute; top: 6px; right: 6px; }
+
+/* Donker thema: aanvulling voor blokken met een vaste witte achtergrond */
+[data-theme="dark"] .sidebar nav a.active,
+[data-theme="dark"] .count, [data-theme="dark"] .tl-icon, [data-theme="dark"] .search, [data-theme="dark"] .url,
+[data-theme="dark"] .portal-steps li, [data-theme="dark"] .soort-tile, [data-theme="dark"] .klant-vakje, [data-theme="dark"] .klant-groot,
+[data-theme="dark"] .updates > li, [data-theme="dark"] .ck-inhoud, [data-theme="dark"] .pi-kop, [data-theme="dark"] .pi-datum,
+[data-theme="dark"] .pi3-b, [data-theme="dark"] .pi6-ding, [data-theme="dark"] .top5 li.now, [data-theme="dark"] .stepper .dot,
+[data-theme="dark"] .kpi, [data-theme="dark"] .stat-card, [data-theme="dark"] .widget, [data-theme="dark"] .status-balk,
+[data-theme="dark"] .ongedaan, [data-theme="dark"] .nieuw-kaart, [data-theme="dark"] .persoon, [data-theme="dark"] .callout {
+  background: #1a2331 !important; color: var(--text); border-color: var(--line) !important;
+}
+[data-theme="dark"] .sidebar nav a.active { background: rgba(255,255,255,.1) !important; color: #fff; }
+[data-theme="dark"] .segmented button.on, [data-theme="dark"] .sv-seg button.on { background: #e7ebf1; color: #0b1220; }
+[data-theme="dark"] .merk-logo { background: #fff; }
+[data-theme="dark"] .muted, [data-theme="dark"] .small.muted { color: var(--muted); }
+[data-theme="dark"] .table tr:hover td, [data-theme="dark"] tbody tr:hover { background: rgba(255,255,255,.03); }
+[data-theme="dark"] .inline-input { background: transparent; color: var(--text); }
+[data-theme="dark"] .portal-content-form input, [data-theme="dark"] .als-klant-bar select { background: #0f1724; color: var(--text); }
+[data-theme="dark"] .badge, [data-theme="dark"] .prio { filter: brightness(.95) saturate(.9); }
+[data-theme="dark"] .sv-fase { filter: brightness(1.1); }
+[data-theme="dark"] .card, [data-theme="dark"] .portal-card:not(.dark) { box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25); }
+[data-theme="dark"] .crm-dossiers.boven, [data-theme="dark"] .crm-dossiers .klant-vakje.boven { background: rgba(59,115,84,.25) !important; }
+[data-theme="dark"] .sv-eigen-knop:hover { background: rgba(255,255,255,.06); }
+[data-theme="dark"] a { color: #9cc0ff; }
+[data-theme="dark"] .btn, [data-theme="dark"] .sidebar a, [data-theme="dark"] .klant-vakje, [data-theme="dark"] .tabs a { color: var(--text); }
+[data-theme="dark"] .btn.primary { color: #0b1220; }
+[data-theme="dark"] .fase-pil, [data-theme="dark"] .board-col-head .fase-pil { filter: none; background: rgba(255,255,255,.07) !important; color: #e7ebf1 !important; }
