@@ -39,7 +39,7 @@ const TOOLS = [
   {
     name: 'facturen_naar_dossiers',
     description: 'Zet Moneybird-facturen (geen concepten) als pdf in het dossier van elke klant. Slaat al aanwezige over. Werkt in porties: herhaal tot resterend 0 is.',
-    inputSchema: { type: 'object', properties: { klant: { type: 'string', description: 'Optioneel: alleen deze klant-id' }, max: { type: 'number', description: 'Max pdfs per aanroep (standaard 12, max 40)' } } },
+    inputSchema: { type: 'object', properties: { klant: { type: 'string', description: 'Optioneel: alleen deze klant-id' }, max: { type: 'number', description: 'Max pdfs per aanroep (standaard 12, max 40)' }, proef: { type: 'boolean', description: 'true = alleen tonen welke facturen erbij horen, niets opslaan' } } },
   },
   { name: 'koppelingen', description: 'Test of Moneybird, Slack, Google Agenda, mail en de database echt werken, met de foutmelding als iets niet werkt.', inputSchema: { type: 'object', properties: {} } },
   { name: 'overzicht', description: 'Snel overzicht: open taken per persoon, deadlines deze week, deals per fase, klanten.', inputSchema: { type: 'object', properties: {} } },
@@ -50,7 +50,7 @@ const enc = encodeURIComponent
 
 async function voerUit(naam: string, a: Record<string, any>): Promise<unknown> {
   if (naam === 'koppelingen') return koppelingen()
-  if (naam === 'facturen_naar_dossiers') return facturenNaarDossiers({ klant: a.klant, max: a.max })
+  if (naam === 'facturen_naar_dossiers') return facturenNaarDossiers({ klant: a.klant, max: a.max, proef: a.proef })
   if (naam === 'bestand_importeren') {
     const url = String(a.url ?? '')
     const pad = String(a.pad ?? '').replace(/^\/+/, '')

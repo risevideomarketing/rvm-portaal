@@ -25,6 +25,34 @@ export default async (req: Request) => {
   const me = await verifyUser(req.headers.get('x-supabase-token'))
   if (!me || !(await heeftRecht(me.person, me.role, 'geld'))) return new Response('Geen toegang tot geldzaken', { status: 401 })
   if (!process.env.MONEYBIRD_TOKEN || !process.env.MONEYBIRD_ADMINISTRATION_ID) return Response.json({ gekoppeld: false })
+  // ?soort=offertes: alle offertes (ook concepten) voor het tabblad Offertes in het CRM
+  if (new URL(req.url).searchParams.get('soort') === 'offertes') {
+    try {
+      const { mb } = await import('../lib/moneybird.mts')
+      type E = { id: string; estimate_id: string | null; estimate_date: string | null; due_date: string | null; state: string; reference?: string; total_price_excl_tax: string; url?: string; contact_id: string; contact?: { company_name?: string; firstname?: string; lastname?: string } }
+      const alle: E[] = []
+      for (let page = 1; page <= 10; page++) {
+        const rows = await mb<E[]>(`estimates.json?filter=${encodeURIComponent('period:all')}&per_page=100&page=${page}`)
+        alle.push(...rows)
+        if (rows.length < 100) break
+      }
+      const offertes = alle.map((e) => ({
+        id: e.id,
+        nummer: e.estimate_id,
+        datum: e.estimate_date,
+        geldigTot: e.due_date,
+        status: e.state,
+        omschrijving: e.reference ?? '',
+        bedrag: Number(e.total_price_excl_tax),
+        klant: e.contact?.company_name || [e.contact?.firstname, e.contact?.lastname].filter(Boolean).join(' ') || '',
+        contactId: e.contact_id,
+        url: `https://moneybird.com/${(process.env.MONEYBIRD_ADMINISTRATION_ID ?? '').replace(/\D/g, '')}/estimates/${e.id}`,
+      })).sort((a, b) => (b.datum ?? '').localeCompare(a.datum ?? ''))
+      return Response.json({ gekoppeld: true, offertes })
+    } catch (e) {
+      return new Response((e as Error).message, { status: 502 })
+    }
+  }
   const jaar = new URL(req.url).searchParams.get('periode') === 'jaar'
   const periode = jaar ? 'this_year' : 'this_month'
   try {

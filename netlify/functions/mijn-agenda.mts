@@ -10,6 +10,10 @@ interface GEvent { id: string; summary?: string; start: { date?: string; dateTim
 export default async (req: Request) => {
   if (!(await verifyUser(req.headers.get('x-supabase-token')))) return new Response('Alleen het team', { status: 401 })
   const lijst = (process.env.GOOGLE_AGENDAS ?? process.env.GOOGLE_CALENDAR_ID ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  // ?lijst=1: alleen de agenda-ID's, voor de ingesloten Google Agenda op de pagina Planning
+  if (new URL(req.url).searchParams.get('lijst')) {
+    return Response.json({ agendas: lijst.map((regel) => { const [naam, id] = regel.includes('=') ? regel.split('=') : ['', regel]; return { naam: naam.trim(), id: id.trim() } }) })
+  }
   if (!googleGekoppeld() || lijst.length === 0) return Response.json({ gekoppeld: false, afspraken: [] })
   const van = new Date(); van.setHours(0, 0, 0, 0)
   const tot = new Date(van.getTime() + 7 * 86_400_000)
