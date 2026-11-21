@@ -149,8 +149,12 @@ export async function dm(person: string, text: string, emails: Map<string, strin
 }
 
 /** Bericht in het teamkanaal (standaard #rise-videomarketing; de bot moet in het kanaal zitten). */
+/** Algemene melding (klantberichten, aanleveringen, portaal). Standaard in de app "Rise Video Marketing Agency" zelf
+ *  (onder Apps in Slack, als bericht aan Daan). SLACK_CHANNEL mag ook een kanaal zijn (#naam of ID) of een ander mailadres. */
 export async function channel(text: string) {
-  await slack('chat.postMessage', { channel: process.env.SLACK_CHANNEL || 'rise-videomarketing', text, unfurl_links: false })
+  const doel = (process.env.SLACK_CHANNEL || 'daan@risevideomarketing.nl').trim()
+  const naar = doel.includes('@') ? await slackUser(doel) : doel.replace(/^#/, '')
+  await slack('chat.postMessage', { channel: naar, text, unfurl_links: false })
 }
 
 export const taskLink = (t: TaskRow) => `<${SITE}/#/taken|${t.title}>`

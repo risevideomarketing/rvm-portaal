@@ -4,10 +4,10 @@
 export const moneybirdGekoppeld = () => Boolean(process.env.MONEYBIRD_TOKEN && process.env.MONEYBIRD_ADMINISTRATION_ID)
 
 export async function mb<T>(pad: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(`https://moneybird.com/api/v2/${process.env.MONEYBIRD_ADMINISTRATION_ID?.trim()}/${pad}`, {
+  const res = await fetch(`https://moneybird.com/api/v2/${(process.env.MONEYBIRD_ADMINISTRATION_ID ?? '').replace(/\D/g, '')}/${pad}`, {
     method: init.method ?? 'GET',
     headers: {
-      Authorization: `Bearer ${(process.env.MONEYBIRD_TOKEN ?? '').replace(/[^!-~]/g, '')}`,
+      Authorization: `Bearer ${(process.env.MONEYBIRD_TOKEN ?? '').trim().replace(/^Bearer\s+/i, '').replace(/[^!-~]/g, '')}`,
       ...(init.body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
