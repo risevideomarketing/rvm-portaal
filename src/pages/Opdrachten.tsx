@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../components/ui'
 import { OPDRACHTEN } from '../data/mock'
 import type { Opdracht } from '../data/types'
-import { uid, useStore } from '../store'
 import { supabase } from '../supabase'
 import { fmtDate } from '../utils'
 
@@ -43,9 +42,8 @@ function useOpdrachten() {
   return { lijst, laden, zet }
 }
 
-export function Opdrachten({ go }: { go: (r: string) => void }) {
+export function Opdrachten(_: { go: (r: string) => void }) {
   const { lijst, laden, zet } = useOpdrachten()
-  const { s, d } = useStore()
   const [filter, setFilter] = useState<Filter>('nieuw')
   const [bron, setBron] = useState('alle')
   const zichtbaar = useMemo(() => lijst
@@ -54,18 +52,6 @@ export function Opdrachten({ go }: { go: (r: string) => void }) {
     .sort((a, b) => b.relevance - a.relevance || b.found_at.localeCompare(a.found_at)), [lijst, filter, bron])
   const telling = (f: Filter) => lijst.filter((o) => (f === 'nieuw' ? o.status === 'open' : f === 'bewaard' ? o.status === 'bewaard' || o.status === 'lead' : true)).length
   const bronnen = [...new Set(lijst.map(bronVan))].sort()
-
-  const naarCrm = (o: Opdracht) => {
-    const id = `op-${o.id}`
-    if (!s.contacts.some((c) => c.id === id)) {
-      d({ type: 'contact:upsert', contact: {
-        id, name: '', company: o.client || o.title, role: '', email: '', phone: '', stage: 'lead', value: 0, owner: s.me, source: bronVan(o), website: undefined,
-        timeline: [{ id: uid(), kind: 'notitie', at: new Date().toISOString(), author: s.me, subject: o.title, body: [o.url, o.budget && `Budget: ${o.budget}`, o.deadline && `Deadline: ${o.deadline}`, o.location].filter(Boolean).join('\n') }],
-      } })
-    }
-    zet({ ...o, status: 'lead' })
-    go(`klanten`)
-  }
 
   return (
     <>
@@ -102,7 +88,7 @@ export function Opdrachten({ go }: { go: (r: string) => void }) {
                 {o.deadline && <span><Icon name="calendar" size={13} /> {o.deadline}</span>}
               </div>
               <div className="op-acties">
-                {o.status === 'lead' ? <span className="badge">In CRM</span> : <button className="btn small primary" onClick={() => naarCrm(o)}><Icon name="crm" size={13} /> Naar CRM</button>}
+                {o.status === 'lead' && <span className="badge">In CRM</span>}
                 {o.status !== 'bewaard' && o.status !== 'lead' && <button className="btn small" onClick={() => zet({ ...o, status: 'bewaard' })}><Icon name="check" size={13} /> Bewaren</button>}
                 {o.status !== 'weg' ? <button className="btn small ghost" onClick={() => zet({ ...o, status: 'weg' })}><Icon name="x" size={13} /> Weg</button> : <button className="btn small ghost" onClick={() => zet({ ...o, status: 'open' })}>Terugzetten</button>}
               </div>

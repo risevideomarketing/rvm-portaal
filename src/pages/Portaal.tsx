@@ -6,7 +6,7 @@ import { faseVan, fasenVan } from '../data/mock'
 import { artikelenNu, useArtikelen } from '../kennis'
 import type { Client, ContentPlek, Hulpvraag, KlantTaak } from '../data/types'
 import { mag, useStore } from '../store'
-import { commissieOphalen, klantFacturen, type Commissie, type KlantFactuur } from '../slack'
+import { commissieOphalen, klantFacturen, klantOffertes, type KlantOfferte, type Commissie, type KlantFactuur } from '../slack'
 import { CommissieBerekening } from '../components/Commissie'
 import { INDELINGEN, STANDAARD_INDELING } from './PortaalIndelingen'
 import { ContentKalender } from '../components/ContentKalender'
@@ -87,6 +87,44 @@ export function FacturenKaart({ clientId }: { clientId: string }) {
   )
 }
 
+/** Offertes uit Moneybird: bekijken en akkoord geven via de Moneybird-link. */
+export function OffertesKaart({ clientId }: { clientId: string }) {
+  const [staat, setStaat] = useState<{ laden: true } | { offertes: KlantOfferte[] } | { lokaal: true } | { fout: string }>({ laden: true })
+  useEffect(() => {
+    let weg = false
+    klantOffertes(clientId).then((r) => {
+      if (weg) return
+      if (r === null) setStaat({ lokaal: true })
+      else if ('fout' in r) setStaat({ fout: r.fout })
+      else setStaat({ offertes: r.offertes })
+    })
+    return () => { weg = true }
+  }, [clientId])
+  return (
+    <section className="portal-card portal-facturen">
+      <Icon name="note" size={22} />
+      <h3>Offertes</h3>
+      {'laden' in staat && <div style={{ width: '100%' }}><SkeletRegels n={3} /></div>}
+      {'lokaal' in staat && <p className="muted">Hier staan je offertes, met een link om ze te bekijken en akkoord te geven. (Lokaal niet zichtbaar, live wel.)</p>}
+      {'fout' in staat && <p className="muted">De offertes zijn nu niet op te halen. Probeer het later nog eens.</p>}
+      {'offertes' in staat && (staat.offertes.length === 0 ? (
+        <p className="muted">Nog geen offertes. Wil je iets nieuws laten maken? Stuur ons een bericht.</p>
+      ) : (
+        <ul className="portal-facturen-lijst">
+          {staat.offertes.map((o) => (
+            <li key={o.nummer}>
+              <span className="factuur-nr"><strong>{o.omschrijving || o.nummer}</strong><span className="muted small">{o.nummer}{o.datum ? ` · ${fmtDate(o.datum)}` : ''}{o.status === 'open' && o.geldigTot ? ` · geldig tot ${fmtDate(o.geldigTot)}` : ''}</span></span>
+              <span className="factuur-bedrag">{euroNL(o.bedrag)} <span className="muted small">excl. btw</span></span>
+              <span className={`badge ${o.status === 'akkoord' ? 'status-klaar' : o.status === 'open' ? 'status-bezig' : ''}`}>{o.status === 'akkoord' ? 'Akkoord' : o.status === 'afgewezen' ? 'Afgewezen' : o.status === 'verlopen' ? 'Verlopen' : 'Open'}</span>
+              {o.url ? <a className="btn small" href={o.url} target="_blank" rel="noreferrer">{o.status === 'open' ? 'Bekijken en akkoord geven' : 'Bekijken'}</a> : <span />}
+            </li>
+          ))}
+        </ul>
+      ))}
+    </section>
+  )
+}
+
 /** Meta-commissie: de berekening van vorige en deze maand, zodat de klant precies ziet waar het bedrag vandaan komt. */
 export function CommissieKaart({ clientId }: { clientId: string }) {
   const maand = (o: number) => { const x = new Date(); x.setDate(1); x.setMonth(x.getMonth() + o); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}` }
@@ -130,8 +168,8 @@ export function HulpvraagKaart({ vragen, onVraag }: { vragen: Hulpvraag[]; onVra
   return (
     <section className="portal-card portal-vraag">
       <Icon name="chat" size={22} />
-      <h3>Vraag of hulp nodig?</h3>
-      <p className="muted">Stel je vraag hier. Hij komt direct bij ons team binnen.</p>
+      <h3>Bericht aan Rise</h3>
+      <p className="muted">Een vraag, wens of idee? Stuur het hier. Het komt direct bij ons team binnen.</p>
       <textarea rows={3} placeholder="Waar kunnen we je mee helpen?" value={tekst} maxLength={2000} onChange={(e) => setTekst(e.target.value)} />
       <div className="portal-vraag-acties">
         <button className="btn primary small" disabled={bezig || tekst.trim().length < 3} onClick={stuur}>{bezig ? 'Versturen…' : 'Versturen'}</button>
@@ -141,7 +179,6 @@ export function HulpvraagKaart({ vragen, onVraag }: { vragen: Hulpvraag[]; onVra
         <ul className="portal-vragen">
           {recent.map((v) => (
             <li key={v.id}>
-              <span className={`badge ${v.afgehandeld ? 'status-klaar' : 'status-bezig'}`}>{v.afgehandeld ? 'Afgehandeld' : 'Open'}</span>
               <span className="small">{v.tekst.length > 120 ? `${v.tekst.slice(0, 120)}…` : v.tekst}</span>
               <span className="muted small">{fmtDate(v.at.slice(0, 10))}</span>
             </li>
@@ -293,6 +330,8 @@ export interface PortaalProps {
   onTaak?: (id: string, gedaan: boolean) => Promise<string | void>
   onContent?: (body: { actie: 'toevoegen'; titel: string; url: string } | { actie: 'weg'; id: string }) => Promise<string | void>
   onVraag?: (tekst: string) => Promise<string | void>
+  /** Klant levert een link, bestand of datum aan (wordt een taak bij het team). */
+  onToevoegen?: (a: import('../slack').Aanlevering) => Promise<string | void>
   /** Facturen tonen (klant altijd; team alleen met het recht geld). */
   facturen?: boolean
 }

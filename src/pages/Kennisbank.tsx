@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Avatar, Icon, PageHead, personName } from '../components/ui'
 import { useArtikelen, useKennisAfbeelding } from '../kennis'
 import { fmtDate } from '../utils'
+import { NotionInhoud } from '../components/NotionInhoud'
 
 /** Zet een youtu.be/… of youtube.com/watch?v=… link om naar een embed-URL. */
 function youtubeEmbed(url: string): string | null {
@@ -14,7 +15,19 @@ export function Kennisbank({ id, go }: { id?: string; go: (r: string) => void })
   const [cat, setCat] = useState('Alles')
   const ARTICLES = useArtikelen()
   const article = ARTICLES.find((a) => a.id === id)
-  const cats = ['Alles', ...Array.from(new Set(ARTICLES.map((a) => a.category)))]
+  const cats = ['Alles', ...Array.from(new Set(ARTICLES.map((a) => a.groep ?? a.category))), 'Voor klanten']
+
+  if (article?.notion)
+    return (
+      <>
+        <button className="back" onClick={() => go('kennisbank')}>← Kennisbank</button>
+        <article className="card article notion-artikel">
+          <div className="article-meta"><span className="muted small">{article.groep ?? article.category}</span>{article.klant && <span className="badge status-klaar">ook voor klanten</span>}</div>
+          <h1>{article.icoon ? `${article.icoon} ` : ''}{article.title}</h1>
+          <NotionInhoud md={article.notion} afb={article.afbeeldingen} />
+        </article>
+      </>
+    )
 
   if (article)
     return (
@@ -52,11 +65,11 @@ export function Kennisbank({ id, go }: { id?: string; go: (r: string) => void })
     )
 
   const ql = q.toLowerCase()
-  const list = ARTICLES.filter((a) => (cat === 'Alles' || a.category === cat) && (a.title + a.summary + a.body.join(' ') + (a.steps ?? []).join(' ')).toLowerCase().includes(ql))
+  const list = ARTICLES.filter((a) => (cat === 'Alles' || (cat === 'Voor klanten' ? a.klant : (a.groep ?? a.category) === cat)) && (a.title + a.summary + a.body.join(' ') + (a.steps ?? []).join(' ') + (a.notion ?? '')).toLowerCase().includes(ql))
 
   return (
     <>
-      <PageHead title="Kennisbank & SOP's" sub="Onze manier van werken, op één plek. Nieuwe SOP's schrijf je straks in de chat met Claude." />
+      <PageHead title="Kennisbank" sub="Alles uit Notion (Rise | Intern en Rise | Resources) plus onze SOP's. Met het label klant staat het ook in het klantportaal." />
       <div className="toolbar">
         <div className="search">
           <Icon name="search" size={16} />
@@ -71,9 +84,10 @@ export function Kennisbank({ id, go }: { id?: string; go: (r: string) => void })
           <button key={a.id} className="card article-card" onClick={() => go(`kennisbank/${a.id}`)}>
             <div className="article-meta">
               <span className={`badge ${a.type === 'SOP' ? 'type-sop' : 'type-kennis'}`}>{a.type}</span>
-              <span className="muted small">{a.category}</span>
+              <span className="muted small">{a.groep ?? a.category}</span>
+              {a.klant && <span className="badge status-klaar">klant</span>}
             </div>
-            <strong>{a.title}</strong>
+            <strong>{a.icoon ? `${a.icoon} ` : ''}{a.title}</strong>
             <p className="muted small">{a.summary}</p>
             <div className="muted small article-card-foot">{a.steps ? `${a.steps.length} stappen · ` : ''}bijgewerkt {fmtDate(a.updated)}</div>
           </button>

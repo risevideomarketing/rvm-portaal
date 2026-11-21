@@ -144,7 +144,7 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
 
           {(client.hulpvragen ?? []).length > 0 && (
             <>
-              <h3 className="section-title" style={{ marginTop: 18 }}>Hulpvragen <span className="muted small">(uit het portaal, ook in Slack)</span></h3>
+              <h3 className="section-title" style={{ marginTop: 18 }}>Berichten <span className="muted small">(uit het portaal, ook in Slack)</span></h3>
               <Hulpvragen client={client} update={update} />
             </>
           )}
@@ -370,24 +370,18 @@ function Links({ client, update }: { client: Client; update: Update }) {
   )
 }
 
-/** Hulpvragen van de klant: open bovenaan, afgehandeld eronder. Antwoorden gaat per mail of telefoon. */
-function Hulpvragen({ client, update }: { client: Client; update: Update }) {
-  const vragen = client.hulpvragen ?? []
+/** Berichten van de klant uit het portaal, nieuwste bovenaan. Geen tickets: antwoorden gaat per mail of telefoon. */
+function Hulpvragen({ client }: { client: Client; update: Update }) {
+  const vragen = [...(client.hulpvragen ?? [])].sort((a, b) => b.at.localeCompare(a.at))
   const [alles, setAlles] = useState(false)
-  const zet = (id: string, afgehandeld: boolean) =>
-    update({ hulpvragen: vragen.map((v) => (v.id === id ? { ...v, afgehandeld, afgehandeldAt: afgehandeld ? new Date().toISOString() : undefined } : v)) })
-  const open = vragen.filter((v) => !v.afgehandeld)
-  const klaar = vragen.filter((v) => v.afgehandeld)
   return (
     <div className="card">
-      {open.length === 0 && <p className="muted small" style={{ margin: 0 }}>Geen open vragen.</p>}
-      {[...open, ...(alles ? klaar : [])].map((v) => (
-        <div key={v.id} className={`link-row hulpvraag ${v.afgehandeld ? 'klaar' : ''}`}>
-          <input type="checkbox" checked={!!v.afgehandeld} onChange={(e) => zet(v.id, e.target.checked)} title={v.afgehandeld ? 'Weer open zetten' : 'Afgehandeld'} />
+      {(alles ? vragen : vragen.slice(0, 5)).map((v) => (
+        <div key={v.id} className="link-row hulpvraag">
           <span className="list-main"><span className="hulpvraag-tekst">{v.tekst}</span><span className="muted small">{v.email ? <a href={`mailto:${v.email}`}>{v.email}</a> : 'klant'} · {fmtDate(v.at.slice(0, 10))}</span></span>
         </div>
       ))}
-      {klaar.length > 0 && <button className="link small" onClick={() => setAlles(!alles)}>{alles ? 'Afgehandelde verbergen' : `${klaar.length} afgehandeld tonen`}</button>}
+      {vragen.length > 5 && <button className="link small" onClick={() => setAlles(!alles)}>{alles ? 'Minder tonen' : `Alle ${vragen.length} berichten`}</button>}
     </div>
   )
 }

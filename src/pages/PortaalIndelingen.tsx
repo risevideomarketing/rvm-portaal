@@ -10,7 +10,7 @@ import { faseVan, fasenVan } from '../data/mock'
 import { artikelenNu } from '../kennis'
 import type { Client, ContentItem, KlantTaak, ProductieFase } from '../data/types'
 import { bronVan, pakketNaam } from '../utils'
-import { CommissieKaart, ContentKaart, FacturenKaart, HulpvraagKaart, ONBOARDING_KLANT, type PortaalProps } from './Portaal'
+import { CommissieKaart, ContentKaart, FacturenKaart, HulpvraagKaart, OffertesKaart, ONBOARDING_KLANT, type PortaalProps } from './Portaal'
 
 type P = PortaalProps & { facturen: boolean }
 
@@ -509,6 +509,51 @@ const FASE_KLANT: Record<ProductieFase, string> = {
 }
 const FASE_STAP: Record<ProductieFase, number> = { productie: 1, filmen: 2, edit1: 3, edit2: 4, feedback: 4, live: 5 }
 
+
+/** De klant levert zelf iets aan: een link, een bestand of een datum. Komt bij Rise binnen als taak. */
+function KlantToevoegen({ client, onToevoegen }: { client: Client; onToevoegen?: P['onToevoegen'] }) {
+  const [soort, setSoort] = useState<'link' | 'bestand' | 'datum'>('link')
+  const [titel, setTitel] = useState('')
+  const [url, setUrl] = useState('')
+  const [datum, setDatum] = useState('')
+  const [bestand, setBestand] = useState<File | null>(null)
+  const [bezig, setBezig] = useState(false)
+  const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
+  const eigen = [
+    ...(client.links ?? []).filter((l) => (l as { doorKlant?: boolean }).doorKlant).map((l) => ({ id: l.id, naam: l.title, at: l.at })),
+    ...(client.bestanden ?? []).filter((b) => (b as { doorKlant?: boolean }).doorKlant).map((b) => ({ id: b.id, naam: b.naam, at: b.at })),
+  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 4)
+  const klaar = soort === 'link' ? url.trim().length > 3 : soort === 'datum' ? Boolean(datum && titel.trim()) : Boolean(bestand)
+  const stuur = async () => {
+    if (!onToevoegen) return setMelding({ ok: false, tekst: 'Dit werkt alleen als de klant zelf is ingelogd.' })
+    setBezig(true); setMelding(null)
+    const fout = await onToevoegen(soort === 'link' ? { soort, titel, url } : soort === 'datum' ? { soort, titel, datum } : { soort, titel, bestand: bestand! })
+    setBezig(false)
+    if (fout) return setMelding({ ok: false, tekst: fout })
+    setTitel(''); setUrl(''); setDatum(''); setBestand(null)
+    setMelding({ ok: true, tekst: 'Dank je! Het staat bij ons op de lijst.' })
+  }
+  return (
+    <section className="portal-card sv-aanleveren">
+      <Icon name="upload" size={22} />
+      <h3>Iets aanleveren</h3>
+      <p className="muted">Een bestand, een link of een belangrijke datum. Het komt direct bij ons binnen.</p>
+      <div className="sv-seg" role="tablist">
+        {(['link', 'bestand', 'datum'] as const).map((x) => <button key={x} className={soort === x ? 'on' : ''} onClick={() => { setSoort(x); setMelding(null) }}>{x === 'link' ? 'Link' : x === 'bestand' ? 'Bestand' : 'Datum'}</button>)}
+      </div>
+      <div className="sv-velden">
+        <input placeholder={soort === 'datum' ? 'Bijv. deadline campagne, beurs, livegang' : 'Omschrijving (optioneel)'} value={titel} onChange={(e) => setTitel(e.target.value)} maxLength={120} />
+        {soort === 'link' && <input type="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} />}
+        {soort === 'datum' && <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)} />}
+        {soort === 'bestand' && <label className="sv-bestand"><input type="file" onChange={(e) => setBestand(e.target.files?.[0] ?? null)} /><span>{bestand ? bestand.name : 'Kies een bestand (max. 50 MB)'}</span></label>}
+        <button className="btn primary small" disabled={!klaar || bezig} onClick={stuur}>{bezig ? 'Versturen…' : 'Versturen'}</button>
+      </div>
+      {melding && <p className="small" style={{ color: melding.ok ? 'var(--green, #30A46C)' : '#c0392b', margin: '8px 0 0' }}>{melding.tekst}</p>}
+      {eigen.length > 0 && <ul className="sv-eigen">{eigen.map((x) => <li key={x.id}><Icon name="check" size={13} /><span>{x.naam}</span><span className="muted small">{kort(x.at.slice(0, 10))}</span></li>)}</ul>}
+    </section>
+  )
+}
+
 function Service(p: P) {
   const { client } = p
   const g = gegevens(client)
@@ -521,7 +566,7 @@ function Service(p: P) {
     .slice(0, 6)
   const volgende = g.komend.find((m) => m.soort !== 'taak')
   const heeftKalender = (client.kanalen ?? []).length > 0
-  const [tab, setTab] = useState<'overzicht' | 'strippenkaart'>('overzicht')
+  const [tab, setTab] = useState<'overzicht' | 'offertes' | 'strippenkaart'>('overzicht')
   const status = g.open.length
     ? `Wij regelen de rest. Er ${g.open.length === 1 ? 'staat één ding' : `staan ${g.open.length} dingen`} voor je klaar, verder hoef je niets te doen.`
     : 'Je hoeft niets te doen. Wij zijn aan de slag en houden je hier op de hoogte.'
@@ -534,14 +579,19 @@ function Service(p: P) {
 
       <div className="pl-tabs pi-tabs sv-tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'overzicht'} className={tab === 'overzicht' ? 'on' : ''} onClick={() => setTab('overzicht')}>Overzicht</button>
+        {p.facturen && <button role="tab" aria-selected={tab === 'offertes'} className={tab === 'offertes' ? 'on' : ''} onClick={() => setTab('offertes')}>Offertes</button>}
         <button role="tab" aria-selected={tab === 'strippenkaart'} className={tab === 'strippenkaart' ? 'on' : ''} onClick={() => setTab('strippenkaart')}>Strippenkaart{client.strippenkaart ? ` · ${String(stripTelling(client.strippenkaart).over).replace('.', ',')} over` : ''}</button>
       </div>
 
-      {tab === 'strippenkaart' ? <><StrippenkaartKlant client={client} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : <>
+      {tab === 'offertes' ? <><OffertesKaart clientId={client.id} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : tab === 'strippenkaart' ? <><StrippenkaartKlant client={client} /><HulpvraagKaart vragen={client.hulpvragen ?? []} onVraag={p.onVraag} /></> : <>
       <section className="sv-hero">
         <div className="sv-hero-tekst">
-          <span className="sv-kicker">Jouw traject{g.pakket ? ` · ${g.pakket}` : ''}</span>
-          <h2>{g.titel}</h2>
+          <span className="sv-kicker">Status{g.pakket ? ` · ${g.pakket}` : ''}</span>
+          {lopend.length === 0 ? <h2>{g.titel}</h2> : (
+            <ul className="sv-status">
+              {lopend.map((x) => <li key={x.id}><strong>{x.name}</strong><span>{FASE_KLANT[x.fase]}{x.deadline && x.deadline >= g.vandaag ? ` · verwacht rond ${kort(x.deadline)}` : ''}</span></li>)}
+            </ul>
+          )}
           <p>{status}</p>
           {client.onboardingVideoUrl && <a className="btn light small" href={client.onboardingVideoUrl} target="_blank" rel="noreferrer">Welkomstvideo <Icon name="external" size={13} /></a>}
         </div>
@@ -569,6 +619,14 @@ function Service(p: P) {
         ))}
       </ol>
 
+        <section className="portal-card dark sv-opgeleverd sv-breed">
+          <Icon name="play" size={22} />
+          <h3>Je video's</h3>
+          <p>Bekijken, downloaden en reageren. Alles staat klaar in Frame.io, je hebt geen account nodig.</p>
+          {client.frameUrl ? <FrameEmbed url={client.frameUrl} donker /> : <span className="small portal-content-leeg">Hier verschijnen je video's zodra de eerste versie klaarstaat.</span>}
+          {klaar.length > 0 && <ul className="sv-klaar">{klaar.map((x) => <li key={x.id}><Icon name="check" size={13} />{x.name}</li>)}</ul>}
+        </section>
+
       <div className="portal-grid portal-grid-2 sv-rij">
         <section className="portal-card sv-werk">
           <Icon name="film" size={22} />
@@ -587,21 +645,14 @@ function Service(p: P) {
             </ul>
           )}
         </section>
-        <section className="portal-card dark sv-opgeleverd">
-          <Icon name="play" size={22} />
-          <h3>Je video's</h3>
-          <p>Bekijken, downloaden en reageren. Alles staat klaar in Frame.io, je hebt geen account nodig.</p>
-          {client.frameUrl ? <FrameEmbed url={client.frameUrl} donker /> : <span className="small portal-content-leeg">Hier verschijnen je video's zodra de eerste versie klaarstaat.</span>}
-          {klaar.length > 0 && <ul className="sv-klaar">{klaar.map((x) => <li key={x.id}><Icon name="check" size={13} />{x.name}</li>)}</ul>}
-        </section>
-      </div>
-
-      <div className="portal-grid portal-grid-2 sv-rij">
         <section className="portal-card">
           <Icon name="calendar" size={22} />
           <h3>Planning</h3>
           <Momenten lijst={g.komend.filter((m) => m.soort !== 'content')} leeg="Hier zetten we je draaidag, opleveringen en andere vaste momenten zodra ze vaststaan." max={6} />
         </section>
+      </div>
+
+      <div className="portal-grid portal-grid-2 sv-rij">
         <section className="portal-card">
           <Icon name="note" size={22} />
           <h3>Wat we voor je deden</h3>
@@ -611,6 +662,7 @@ function Service(p: P) {
             </ul>
           )}
         </section>
+        <KlantToevoegen client={client} onToevoegen={p.onToevoegen} />
       </div>
 
       {heeftKalender && <section className="portal-card"><Icon name="calendar" size={22} /><h3>Contentkalender</h3><p className="muted">Wat we wanneer voor je plaatsen. Klik op een item voor de volledige tekst.</p><ContentKalender client={client} klant /></section>}

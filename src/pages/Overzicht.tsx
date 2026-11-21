@@ -3,7 +3,7 @@ import { Progress } from '../components/charts'
 import { TaskDrawer } from '../components/TaskDrawer'
 import { AgendaKaart, TodoKaart } from '../components/OverzichtKaarten'
 import { Avatar, Icon, Kpi, LeegStaat, TaakWie, personName } from '../components/ui'
-import { STAGES, faseVan, fasenVan, isKlant } from '../data/mock'
+import { STAGES, faseVan, fasenVan, isKlant, pipelineItems } from '../data/mock'
 import type { Task } from '../data/types'
 import { useMag, useStore } from '../store'
 import { daysUntil, deadlineLabel, euro, opTodo, teLaat } from '../utils'
@@ -77,7 +77,7 @@ export function Overzicht({ go }: { go: (r: string) => void }) {
       <div className="kpi-grid">
         <Kpi label="Klanten" value={String(s.contacts.filter((c) => isKlant(c.stage)).length)} hint={kan('geld') ? `${euro(s.contacts.filter((c) => isKlant(c.stage)).reduce((a, c) => a + c.value, 0))} aan opdrachten` : 'In de CRM'} />
         <Kpi label="Leads" value={String(s.contacts.filter((c) => c.stage === 'lead' || c.stage === 'gemaild').length)} hint="Lead en gemaild in de CRM" />
-        <Kpi label="Voorstellen uit" value={kan('geld') ? euro(s.contacts.filter((c) => c.stage === 'voorstel').reduce((a, c) => a + c.value, 0)) : String(s.contacts.filter((c) => c.stage === 'voorstel').length)} hint={`${s.contacts.filter((c) => c.stage === 'voorstel').length} voorstellen · ${reminders.length} zonder reactie`} />
+        <Kpi label="Voorstellen uit" value={kan('geld') ? euro(pipelineItems(s.contacts).filter((c) => c.stage === 'voorstel').reduce((a, c) => a + c.value, 0)) : String(pipelineItems(s.contacts).filter((c) => c.stage === 'voorstel').length)} hint={`${pipelineItems(s.contacts).filter((c) => c.stage === 'voorstel').length} voorstellen · ${reminders.length} zonder reactie`} />
         <Kpi label="Afgerond deze week" value={String(afgerond[afgerond.length - 1])} trend={afgerond} delta={afgerond[afgerond.length - 2] ? Math.round(((afgerond[afgerond.length - 1] - afgerond[afgerond.length - 2]) / afgerond[afgerond.length - 2]) * 100) : undefined} deltaTekst="t.o.v. vorige week" hint={`${openTasks.length} open · ${late} over de deadline`} />
       </div>
 
@@ -94,7 +94,7 @@ export function Overzicht({ go }: { go: (r: string) => void }) {
           </div>
           <div className="funnel">
             {STAGES.map((st) => {
-              const col = s.contacts.filter((c) => c.stage === st.key)
+              const col = pipelineItems(s.contacts).filter((c) => c.stage === st.key)
               return (
                 <div key={st.key} className="funnel-step">
                   <div className="funnel-n">{col.length}</div>

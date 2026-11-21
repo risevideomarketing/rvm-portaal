@@ -1,3 +1,4 @@
+import { metOngedaan } from '../components/Ongedaan'
 import { useState, type ReactNode } from 'react'
 import { Bestanden } from '../components/Bestanden'
 import { MerkLogo } from '../components/Logo'
@@ -336,9 +337,11 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
                     <strong>{personName(u.author)}</strong>
                     <span className="muted"> · {wanneer(u.date)}</span>
                     {u.klant && <span className="badge status-klaar" title="Staat in het klantportaal">in portaal</span>}
-                    {u.author === s.me && (
-                      <button className="icon-btn" aria-label="Update verwijderen" onClick={() => window.confirm('Deze update verwijderen?') && d({ type: 'project:update:weg', id: project.id, updateId: u.id })}><Icon name="x" size={13} /></button>
-                    )}
+                    <button className="icon-btn tl-weg" aria-label="Update verwijderen" onClick={() => {
+                      const oud = project.updates
+                      d({ type: 'project:update:weg', id: project.id, updateId: u.id })
+                      metOngedaan('Update verwijderd', () => d({ type: 'project:upsert', project: { ...project, updates: oud } }))
+                    }}><Icon name="x" size={13} /></button>
                   </div>
                   <MetLinks text={u.text} />
                 </div>

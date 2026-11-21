@@ -9,6 +9,8 @@ export type Thema = 'licht' | 'donker' | 'systeem'
 export type Kleur = 'rise' | 'oceaan' | 'bos' | 'terracotta' | 'pruim' | 'grafiet'
 const THEMA_KEY = 'rise-dashboard-thema'
 const KLEUR_KEY = 'rise-dashboard-kleur'
+const ACHTERGROND_KEY = 'rise-dashboard-achtergrond'
+type Achtergrond = 'verloop' | 'grijs' | 'creme'
 
 export const KLEURTHEMAS: { key: Kleur; naam: string; kleur: string }[] = [
   { key: 'rise', naam: 'Rise', kleur: '#08111F' },
@@ -24,6 +26,7 @@ export function pasThemaToe(thema: Thema = (localStorage.getItem(THEMA_KEY) as T
   const donker = thema === 'donker' || (thema === 'systeem' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
   document.documentElement.dataset.theme = donker ? 'dark' : 'light'
   document.documentElement.dataset.kleur = kleur
+  document.documentElement.dataset.achtergrond = localStorage.getItem(ACHTERGROND_KEY) || 'verloop'
 }
 
 export function Instellingen() {
@@ -42,13 +45,18 @@ export function Instellingen() {
 function Weergave() {
   const [thema, setThema] = useState<Thema>((localStorage.getItem(THEMA_KEY) as Thema) || 'licht')
   const [kleur, setKleur] = useState<Kleur>((localStorage.getItem(KLEUR_KEY) as Kleur) || 'rise')
-  useEffect(() => { localStorage.setItem(THEMA_KEY, thema); localStorage.setItem(KLEUR_KEY, kleur); pasThemaToe(thema, kleur) }, [thema, kleur])
+  const [achtergrond, setAchtergrond] = useState<Achtergrond>((localStorage.getItem(ACHTERGROND_KEY) as Achtergrond) || 'verloop')
+  useEffect(() => { localStorage.setItem(THEMA_KEY, thema); localStorage.setItem(KLEUR_KEY, kleur); localStorage.setItem(ACHTERGROND_KEY, achtergrond); pasThemaToe(thema, kleur) }, [thema, kleur, achtergrond])
   return (
     <div className="card instellingen-blok">
       <h3 className="section-title" style={{ marginTop: 0 }}>Weergave <span className="muted small">(alleen voor jou, op dit apparaat)</span></h3>
       <div className="instelling-rij">
         <strong>Licht of donker</strong>
         <Segmented value={thema} onChange={setThema} options={[{ value: 'licht', label: 'Licht' }, { value: 'donker', label: 'Donker' }, { value: 'systeem', label: 'Zoals je apparaat' }]} />
+      </div>
+      <div className="instelling-rij" style={{ marginTop: 14 }}>
+        <div><strong>Achtergrond</strong><div className="muted small">Bij licht thema</div></div>
+        <Segmented value={achtergrond} onChange={setAchtergrond} options={[{ value: 'verloop', label: 'Verloop' }, { value: 'grijs', label: 'Lichtgrijs' }, { value: 'creme', label: 'Crème' }]} />
       </div>
       <div className="instelling-rij" style={{ marginTop: 14 }}>
         <div><strong>Kleurthema</strong><div className="muted small">Zijbalk, knoppen en achtergrond</div></div>

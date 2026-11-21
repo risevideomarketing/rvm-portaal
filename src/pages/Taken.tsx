@@ -11,7 +11,7 @@ import { AGENDA_URL, daysUntil, deadlineLabel, opTodo, teLaat, standaardAfVoor }
 const PRIO_ORDER = { hoog: 0, middel: 1, laag: 2 }
 
 /** Vaste kleur per soort, zodat je hem in één oogopslag herkent. */
-const SOORT_KLEUR: Record<string, string> = { Urgent: 'rood', Sales: 'oranje', 'Directe omzet': 'groen', Klantwerk: 'blauw', 'Business improvement': 'paars', 'Geld besparen': 'geel', Systemen: 'grijs' }
+const SOORT_KLEUR: Record<string, string> = { Urgent: 'rood', 'Door klant': 'blauw', Sales: 'oranje', 'Directe omzet': 'groen', Klantwerk: 'blauw', 'Business improvement': 'paars', 'Geld besparen': 'geel', Systemen: 'grijs' }
 
 export function TaskRow({ t, onOpen, showClient = true }: { t: Task; onOpen: () => void; showClient?: boolean }) {
   const { s, d } = useStore()
@@ -135,13 +135,12 @@ export function Taken({ klant: klantRoute, go }: { klant?: string; go?: (r: stri
 
   const isUrgent = (t: Task) => t.status !== 'klaar' && t.priority === 'hoog' && daysUntil(t.deadline) <= 1
   const voorFilter = klant === 'intern' ? '' : klant
-  const open = (t: Task) => opTodo(t) && t.status !== 'klaar'
   const mineOrAll = s.tasks
     .filter(opTodo)
     .filter((t) => who === 'all' || t.assignee === who)
     .filter((t) => klant === 'all' || voorVan(t, s.clients) === voorFilter)
   const tasks = mineOrAll
-    .filter((t) => soort === 'all' || (soort === 'Urgent' ? isUrgent(t) : t.soort === soort))
+    .filter((t) => soort === 'all' || (soort === 'Urgent' ? isUrgent(t) : soort === 'Door klant' ? Boolean(t.doorKlant) : t.soort === soort))
     .filter((t) => showDone || view === 'bord' || t.status !== 'klaar')
     .sort((a, b) => a.deadline.localeCompare(b.deadline) || PRIO_ORDER[a.priority] - PRIO_ORDER[b.priority])
 
@@ -160,34 +159,19 @@ export function Taken({ klant: klantRoute, go }: { klant?: string; go?: (r: stri
       <SnelleTaak key={klant} voor={klant !== 'all' && klant !== 'intern' ? klant : ''} />
 
       <div className="card taken-filters">
-        <div className="filter-rij">
-          <span className="filter-label">Voor</span>
-          <div className="chips">
-            {(() => {
-              const chip = (id: string, naam: string, n: number) => (
-                <button key={id} className={`chip ${klant === id ? 'on' : ''} ${n === 0 && klant !== id ? 'leeg' : ''}`} onClick={() => setKlant(id)}>{naam} <span className="aantal">{n}</span></button>
-              )
-              const tel = (v: string) => s.tasks.filter((t) => open(t) && voorVan(t, s.clients) === v).length
-              return (
-                <>
-                  {chip('all', 'Alles', s.tasks.filter(open).length)}
-                  {s.clients.length > 0 && <span className="chip-groep">Klanten</span>}
-                  {s.clients.map((c) => chip(c.id, c.name, tel(c.id)))}
-                  {s.projects.length > 0 && <span className="chip-groep">Rise Video Marketing</span>}
-                  {s.projects.map((p) => chip(`p.${p.id}`, p.name, tel(`p.${p.id}`)))}
-                  {tel('') > 0 && <span className="chip-groep" />}
-                  {tel('') > 0 && chip('intern', 'Overig', tel(''))}
-                </>
-              )
-            })()}
+        {klant !== 'all' && (
+          <div className="filter-rij">
+            <span className="filter-label">Voor</span>
+            <div className="chips"><button className="chip on" onClick={() => setKlant('all')}>{klant === 'intern' ? 'Overig' : klant.startsWith('p.') ? s.projects.find((p) => `p.${p.id}` === klant)?.name : s.clients.find((c) => c.id === klant)?.name} <Icon name="x" size={12} /></button></div>
           </div>
-        </div>
+        )}
         <div className="filter-rij">
           <span className="filter-label">Soort</span>
           <div className="chips">
             <button className={`chip ${soort === 'all' ? 'on' : ''}`} onClick={() => setSoort('all')}>Alles <span className="aantal">{mineOrAll.filter((t) => t.status !== 'klaar').length}</span></button>
-            {['Urgent', ...SOORTEN].map((x) => {
-              const n = mineOrAll.filter((t) => (x === 'Urgent' ? isUrgent(t) : t.soort === x && t.status !== 'klaar')).length
+            {['Urgent', 'Door klant', ...SOORTEN].map((x) => {
+              const n = mineOrAll.filter((t) => (x === 'Urgent' ? isUrgent(t) : x === 'Door klant' ? t.doorKlant && t.status !== 'klaar' : t.soort === x && t.status !== 'klaar')).length
+              if (x === 'Door klant' && n === 0 && soort !== x) return null
               return (
                 <button key={x} className={`chip soort-chip ${x === 'Urgent' ? 'urgent' : ''} ${soort === x ? 'on' : ''} ${n === 0 && soort !== x ? 'leeg' : ''}`} onClick={() => setSoort(soort === x ? 'all' : x)}>
                   <i className={`stip stip-${SOORT_KLEUR[x] ?? 'grijs'}`} />{x} <span className="aantal">{n}</span>

@@ -1,9 +1,10 @@
+import { metOngedaan } from '../components/Ongedaan'
 import { useRef, useState } from 'react'
 import { MerkLogo, MerkVelden } from '../components/Logo'
 import { TaskDrawer, newTask } from '../components/TaskDrawer'
 import { Avatar, DemoNote, Drawer, Icon, PageHead, Segmented, personName } from '../components/ui'
-import { ALLE_STAGES, STAGES, TEAM, faseVan, isKlant } from '../data/mock'
-import type { Contact, Contactpersoon, PersonId, Stage, Task, TimelineKind } from '../data/types'
+import { ALLE_STAGES, STAGES, TEAM, TRAJECTEN, faseVan, isKlant, pipelineItems, type PipelineItem } from '../data/mock'
+import type { Contact, Contactpersoon, Deal, PersonId, Stage, Task, TimelineKind } from '../data/types'
 import { uid, useMag, useStore } from '../store'
 import { euro, fmtDate, fmtDateTime, slug, standaardAfVoor } from '../utils'
 import { TaskTable } from './Taken'
@@ -33,13 +34,29 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
   const [nieuwIn, setNieuwIn] = useState<Stage | null>(null)
   const open = s.contacts.find((c) => c.id === openId) ?? null
 
-  /** Nieuw contact pas aanmaken als er een bedrijfsnaam is (geen lege kaarten meer). */
-  const maak = (bedrijf: string, stage: Stage) => {
+  /** Nieuwe deal: wat we verkopen staat voorop; bij een bestaand bedrijf komt de deal bij dat contact. */
+  const maak = (titel: string, bedrijf: string, stage: Stage) => {
     if (!bedrijf.trim()) return
-    const c: Contact = { id: uid(), name: '', company: bedrijf.trim(), role: '', email: '', phone: '', stage, value: 0, owner: s.me, source: '', timeline: [] }
+    const deal: Deal = { id: uid(), titel: titel.trim(), stage, value: 0, owner: s.me, createdAt: new Date().toISOString() }
+    const bestaand = s.contacts.find((c) => c.company.trim().toLowerCase() === bedrijf.trim().toLowerCase())
+    if (bestaand) {
+      d({ type: 'contact:patch', id: bestaand.id, patch: { deals: [...(bestaand.deals ?? []), deal] } })
+      setNieuwIn(null)
+      setOpenId(bestaand.id)
+      return
+    }
+    const c: Contact = { id: uid(), name: '', company: bedrijf.trim(), role: '', email: '', phone: '', stage: isKlant(stage) ? stage : stage, value: 0, owner: s.me, source: '', timeline: [], deals: titel.trim() ? [deal] : [] }
     d({ type: 'contact:upsert', contact: c })
     setNieuwIn(null)
     setOpenId(c.id)
+  }
+  /** Verslepen: een deal verhuist zelf; wordt hij klant, dan wordt het bedrijf ook klant. */
+  const verplaats = (key: string, stage: Stage) => {
+    const [soort, cid, did] = key.split(':')
+    const c = s.contacts.find((x) => x.id === cid)
+    if (!c) return
+    if (soort === 'c') return d({ type: 'contact:stage', id: c.id, stage })
+    d({ type: 'contact:patch', id: c.id, patch: { deals: (c.deals ?? []).map((x) => (x.id === did ? { ...x, stage } : x)), ...(isKlant(stage) && !isKlant(c.stage) ? { stage } : {}) } })
   }
   /** Klant met profiel: naar het profiel. Anders: het contactvenster. */
   const openKaart = (c: Contact) => {
@@ -50,21 +67,23 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
 
   return (
     <>
-      <PageHead title="CRM" sub="Sleep een kaart naar de volgende fase. Klik voor mails, notities, pdf's, projecten, taken en facturen.">
+      <PageHead title="CRM" sub="Elke kaart is een deal: het project of de video die we verkopen. Sleep naar de volgende fase.">
         <Segmented value={weergave} onChange={(v) => go(v === 'contacten' ? 'crm/contacten' : 'crm')} options={[{ value: 'pipeline', label: 'Pipeline' }, { value: 'contacten', label: 'Alle contacten' }]} />
-        {kan('crm_bewerken') && <button className="btn primary" onClick={() => { if (weergave !== 'pipeline') go('crm'); setNieuwIn('koud') }}><Icon name="plus" size={16} /> Contact</button>}
+        {kan('crm_bewerken') && <button className="btn primary" onClick={() => { if (weergave !== 'pipeline') go('crm'); setNieuwIn('lead') }}><Icon name="plus" size={16} /> Deal</button>}
       </PageHead>
 
       {weergave === 'contacten' ? (
         <AlleContacten onOpen={openKaart} />
       ) : (
         <div className="board pipeline">
-          {STAGES.map((st) => {
-            const col = s.contacts.filter((c) => c.stage === st.key)
-            const total = col.reduce((a, c) => a + c.value, 0)
+          {(() => {
+            const items = pipelineItems(s.contacts)
+            return STAGES.map((st) => {
+            const col = items.filter((it) => it.stage === st.key)
+            const total = col.reduce((a, it) => a + it.value, 0)
             return (
               <div key={st.key} className={`board-col ${drag ? 'droppable' : ''}`} style={{ background: st.kolom }} onDragOver={(e) => e.preventDefault()}
-                onDrop={() => { if (drag) d({ type: 'contact:stage', id: drag, stage: st.key as Stage }); setDrag(null) }}>
+                onDrop={() => { if (drag) verplaats(drag, st.key as Stage); setDrag(null) }}>
                 <div className="board-col-head">
                   <span className="fase-pil" style={{ color: st.kleur, background: st.bg }}><i style={{ background: st.kleur }} />{st.label}</span>
                   <span className="count">{col.length}</span>
@@ -72,13 +91,14 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
                 {kan('geld') && <div className="muted small col-total">{euro(total)} aan opdrachten</div>}
                 {col.length === 0 && st.key === 'extra' && <p className="muted small" style={{ margin: '4px 4px 8px' }}>Sleep hier klanten die extra opvolging nodig hebben.</p>}
                 {col.length === 0 && st.key === 'koud' && <p className="muted small" style={{ margin: '4px 4px 8px' }}>Nog geen koude prospects.</p>}
-                {col.map((c) => <ContactKaart key={c.id} c={c} onDrag={setDrag} onOpen={() => openKaart(c)} />)}
+                {col.map((it) => <DealKaart key={it.key} it={it} onDrag={setDrag} onOpen={() => openKaart(it.contact)} />)}
                 {kan('crm_bewerken') && (nieuwIn === st.key ? (
-                  <NieuwContact onKlaar={(naam) => maak(naam, st.key as Stage)} onStop={() => setNieuwIn(null)} />
+                  <NieuweDeal onKlaar={(titel, bedrijf) => maak(titel, bedrijf, st.key as Stage)} onStop={() => setNieuwIn(null)} />
                 ) : <button className="kolom-nieuw" onClick={() => setNieuwIn(st.key as Stage)}><Icon name="plus" size={13} /> Nieuw</button>)}
               </div>
             )
-          })}
+            })
+          })()}
         </div>
       )}
 
@@ -87,42 +107,88 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
   )
 }
 
-function NieuwContact({ onKlaar, onStop }: { onKlaar: (bedrijf: string) => void; onStop: () => void }) {
-  const [naam, setNaam] = useState('')
+function NieuweDeal({ onKlaar, onStop }: { onKlaar: (titel: string, bedrijf: string) => void; onStop: () => void }) {
+  const { s } = useStore()
+  const [titel, setTitel] = useState('')
+  const [bedrijf, setBedrijf] = useState('')
+  const klaar = () => bedrijf.trim() && onKlaar(titel, bedrijf)
   return (
     <div className="board-card nieuw-kaart">
-      <input autoFocus placeholder="Bedrijfsnaam" value={naam} onChange={(e) => setNaam(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onKlaar(naam); if (e.key === 'Escape') onStop() }} />
+      <input autoFocus placeholder="Project of video, bijv. Bedrijfsfilm 2027" value={titel} list="deal-diensten" onChange={(e) => setTitel(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') onStop() }} />
+      <datalist id="deal-diensten">{TRAJECTEN.map((t) => <option key={t.naam} value={t.naam} />)}</datalist>
+      <input placeholder="Klant of bedrijf" value={bedrijf} list="deal-bedrijven" onChange={(e) => setBedrijf(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') klaar(); if (e.key === 'Escape') onStop() }} />
+      <datalist id="deal-bedrijven">{s.contacts.map((c) => <option key={c.id} value={c.company} />)}</datalist>
       <div className="nieuw-kaart-knoppen">
-        <button className="btn small primary" onClick={() => onKlaar(naam)} disabled={!naam.trim()}>Maken</button>
+        <button className="btn small primary" onClick={klaar} disabled={!bedrijf.trim()}>Maken</button>
         <button className="btn small ghost" onClick={onStop}>Annuleren</button>
       </div>
     </div>
   )
 }
 
-function ContactKaart({ c, onDrag, onOpen }: { c: Contact; onDrag: (id: string | null) => void; onOpen: () => void }) {
+function DealKaart({ it, onDrag, onOpen }: { it: PipelineItem; onDrag: (key: string | null) => void; onOpen: () => void }) {
   const { s } = useStore()
   const kan = useMag()
+  const c = it.contact
   const taken = takenVanContact(s, c)
   const klaar = taken.filter((t) => t.status === 'klaar').length
   const last = c.timeline[0]
+  const bestaandeKlant = it.deal && isKlant(c.stage) && !isKlant(it.stage)
   return (
-    <div className="board-card" draggable={kan('crm_bewerken')} onDragStart={() => onDrag(c.id)} onDragEnd={() => onDrag(null)} onClick={onOpen}>
-      <div className="board-card-title kaart-kop"><MerkLogo merk={c} naam={c.company} size={24} /><span>{c.company}</span></div>
-      <div className="muted small">{[c.name, c.source].filter(Boolean).join(' · ')}{(c.personen?.length ?? 0) > 0 ? ` +${c.personen!.length}` : ''}</div>
+    <div className="board-card" draggable={kan('crm_bewerken')} onDragStart={() => onDrag(it.key)} onDragEnd={() => onDrag(null)} onClick={onOpen}>
+      {it.deal ? (
+        <>
+          <div className="board-card-title deal-titel">{it.titel}</div>
+          <div className="kaart-kop deal-bedrijf"><MerkLogo merk={c} naam={c.company} size={18} /><span className="small">{c.company}</span>{bestaandeKlant && <span className="badge status-klaar">klant</span>}</div>
+        </>
+      ) : (
+        <>
+          <div className="board-card-title kaart-kop"><MerkLogo merk={c} naam={c.company} size={24} /><span>{c.company}</span></div>
+          <div className="muted small">{[c.name, c.source].filter(Boolean).join(' · ')}{(c.personen?.length ?? 0) > 0 ? ` +${c.personen!.length}` : ''}</div>
+        </>
+      )}
       {c.opvolgen && <div className="small opvolgen-label"><Icon name="calendar" size={12} /> Opvolgen {opvolgDatum(c.opvolgen)}</div>}
-      {taken.length > 0 && (
+      {!it.deal && taken.length > 0 && (
         <div className="row-progress">
           <span className="muted small">☑ {klaar}/{taken.length} taken</span>
           <span className="mini-bar"><i style={{ width: `${(klaar / taken.length) * 100}%` }} /></span>
         </div>
       )}
       <div className="board-card-foot">
-        {kan('geld') ? <span className="small strong" title="Dealwaarde">{euro(c.value)}</span> : <span />}
+        {kan('geld') ? <span className="small strong" title="Dealwaarde">{euro(it.value)}</span> : <span />}
         <span className="muted small">{last ? fmtDateTime(last.at).split(',')[0] : 'Geen contact'}</span>
-        <Avatar id={c.owner} size={22} />
+        <Avatar id={it.deal?.owner ?? c.owner} size={22} />
       </div>
+    </div>
+  )
+}
+
+/** Deals van dit bedrijf: wat we verkopen, elk met eigen fase en bedrag. */
+export function Deals({ contact }: { contact: Contact }) {
+  const { s, d } = useStore()
+  const kan = useMag()
+  const deals = contact.deals ?? []
+  const zet = (nieuw: Deal[]) => d({ type: 'contact:patch', id: contact.id, patch: { deals: nieuw } })
+  const wijzig = (id: string, p: Partial<Deal>) => {
+    const nieuw = deals.map((x) => (x.id === id ? { ...x, ...p } : x))
+    d({ type: 'contact:patch', id: contact.id, patch: { deals: nieuw, ...(p.stage && isKlant(p.stage) && !isKlant(contact.stage) ? { stage: p.stage } : {}) } })
+  }
+  return (
+    <div className="deals">
+      {deals.length === 0 && <p className="muted small" style={{ margin: '0 0 8px' }}>Nog geen deals. Voeg toe wat je verkoopt, bijv. een bedrijfsfilm of een campagne.</p>}
+      {deals.map((x) => (
+        <fieldset key={x.id} className="kaal deal-rij" disabled={!kan('crm_bewerken')}>
+          <input className="inline-input deal-naam" placeholder="Project of video" value={x.titel} onChange={(e) => wijzig(x.id, { titel: e.target.value })} />
+          <select value={x.stage} style={{ color: ALLE_STAGES.find((st) => st.key === x.stage)?.kleur }} onChange={(e) => wijzig(x.id, { stage: e.target.value as Stage })}>
+            {ALLE_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
+          </select>
+          {kan('geld') && <input className="inline-input deal-bedrag" type="number" min={0} step={50} placeholder="€ 0" value={x.value || ''} onChange={(e) => wijzig(x.id, { value: Math.max(0, Number(e.target.value) || 0) })} />}
+          <button className="icon-btn" aria-label="Deal verwijderen" onClick={() => { const oud = deals; zet(deals.filter((y) => y.id !== x.id)); metOngedaan('Deal verwijderd', () => zet(oud)) }}><Icon name="x" size={13} /></button>
+        </fieldset>
+      ))}
+      {kan('crm_bewerken') && <button className="btn small" onClick={() => zet([...deals, { id: uid(), titel: '', stage: isKlant(contact.stage) ? 'voorstel' : contact.stage === 'afgehandeld' ? 'lead' : contact.stage, value: 0, owner: s.me, createdAt: new Date().toISOString() }])}><Icon name="plus" size={14} /> Deal of offerte</button>}
     </div>
   )
 }
@@ -295,7 +361,7 @@ function ContactDrawer({ contact, onClose, go }: { contact: Contact; onClose: ()
             <div><span className="muted">Bedrijf</span><input className="inline-input" value={contact.company} onChange={(e) => patch({ company: e.target.value })} /></div>
             <div><span className="muted">Naam</span><input className="inline-input" placeholder="Contactpersoon" value={contact.name} onChange={(e) => patch({ name: e.target.value })} /></div>
             <div><span className="muted">Functie</span><input className="inline-input" placeholder="Bijv. eigenaar" value={contact.role} onChange={(e) => patch({ role: e.target.value })} /></div>
-            {kan('geld') && <div><span className="muted">Dealwaarde (ex btw)</span><input className="inline-input" type="number" min={0} step={50} value={contact.value || ''} placeholder="€ 0" onChange={(e) => patch({ value: Math.max(0, Number(e.target.value) || 0) })} /></div>}
+            {kan('geld') && !(contact.deals?.length) && <div><span className="muted">Dealwaarde (ex btw)</span><input className="inline-input" type="number" min={0} step={50} value={contact.value || ''} placeholder="€ 0" onChange={(e) => patch({ value: Math.max(0, Number(e.target.value) || 0) })} /></div>}
             <div><span className="muted">Eigenaar</span>
               <span className="eigenaar-veld"><Avatar id={contact.owner} size={20} />
                 <select value={contact.owner} onChange={(e) => patch({ owner: e.target.value as PersonId })}>
@@ -325,6 +391,9 @@ function ContactDrawer({ contact, onClose, go }: { contact: Contact; onClose: ()
               </div>
             )
           )}
+
+          <h3 className="section-title">Deals en offertes</h3>
+          <Deals contact={contact} />
 
           <h3 className="section-title">Contactpersonen</h3>
           <Contactpersonen contact={contact} />
@@ -368,6 +437,11 @@ function ContactDrawer({ contact, onClose, go }: { contact: Contact; onClose: ()
                     <strong>{KIND[t.kind].label}</strong>
                     {t.author && <span className="muted"> · {personName(t.author)}</span>}
                     <span className="muted"> · {fmtDateTime(t.at)}</span>
+                    <button className="icon-btn tl-weg" aria-label="Verwijderen" onClick={() => {
+                      const oud = contact.timeline
+                      d({ type: 'contact:patch', id: contact.id, patch: { timeline: oud.filter((x) => x.id !== t.id) } })
+                      metOngedaan(`${KIND[t.kind].label} verwijderd`, () => d({ type: 'contact:patch', id: contact.id, patch: { timeline: oud } }))
+                    }}><Icon name="x" size={13} /></button>
                   </div>
                   {t.subject && <div className="tl-subject">{t.subject}</div>}
                   {t.body && <div>{t.body}</div>}

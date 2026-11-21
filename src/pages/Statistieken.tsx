@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { MerkLogo } from '../components/Logo'
 import { Icon, PageHead, Segmented, SkeletRegels } from '../components/ui'
 import { geld, getal, resultaat } from '../components/Weekcijfers'
-import { STAGES, faseVan, isKlant } from '../data/mock'
+import { STAGES, faseVan, isKlant, pipelineItems } from '../data/mock'
 import type { Client } from '../data/types'
 import {
   analytics, eigenMeta, klantMetaLive, moneybird,
@@ -106,9 +106,9 @@ function CrmWidget() {
   const { s } = useStore()
   const sinds = Date.now() - 30 * 86400000
   const contactmomenten = s.contacts.flatMap((c) => c.timeline).filter((t) => ['mail-uit', 'whatsapp', 'gesprek'].includes(t.kind) && new Date(t.at).getTime() >= sinds)
-  const aantal = (st: string) => s.contacts.filter((c) => c.stage === st).length
+  const aantal = (st: string) => pipelineItems(s.contacts).filter((c) => c.stage === st).length
   const mrr = s.contacts.filter((c) => isKlant(c.stage)).reduce((a, c) => a + c.value, 0)
-  const pipeline = s.contacts.filter((c) => c.stage === 'voorstel').reduce((a, c) => a + c.value, 0)
+  const pipeline = pipelineItems(s.contacts).filter((c) => c.stage === 'voorstel').reduce((a, c) => a + c.value, 0)
   const max = Math.max(1, ...STAGES.map((st) => aantal(st.key)))
   return (
     <Widget kleur="crm" titel="CRM" icon="crm">
