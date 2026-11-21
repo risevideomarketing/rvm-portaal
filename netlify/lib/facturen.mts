@@ -5,18 +5,33 @@ import { mb } from './moneybird.mts'
 import { sb } from './rise.mts'
 
 interface Contact { id: string; company_name?: string }
-interface Factuur { id: string; invoice_id: string | null; invoice_date: string | null; contact_id: string; state: string }
+interface Factuur { id: string; invoice_id: string | null; invoice_date: string | null; contact_id: string; state: string; reference?: string; total_price_incl_tax?: string }
 interface Bestand { id: string; naam: string; pad: string; type: string; grootte: number; at: string; by?: string }
 
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
 
-/** Moneybird-contact van een klant: vaste koppeling, anders een eenduidige naam-match (liever niets dan andermans facturen). */
-export async function contactVan(klant: { name?: string; moneybirdContactId?: string }): Promise<string | undefined> {
-  if (klant.moneybirdContactId?.trim()) return klant.moneybirdContactId.trim()
-  if (!klant.name) return undefined
+/** Moneybird-contacten van een klant: vaste koppeling(en), anders een eenduidige naam-match (liever niets dan andermans facturen). */
+export async function contactenVan(klant: { name?: string; moneybirdContactId?: string; moneybirdContactIds?: string[] }): Promise<string[]> {
+  const vast = [...(klant.moneybirdContactIds ?? []), klant.moneybirdContactId ?? ''].map((x) => x.trim()).filter(Boolean)
+  if (vast.length) return [...new Set(vast)]
+  if (!klant.name) return []
   const gevonden = await mb<Contact[]>(`contacts.json?query=${encodeURIComponent(klant.name)}&per_page=10`)
   const exact = gevonden.filter((c) => norm(c.company_name ?? '') === norm(klant.name!))
-  return (exact.length === 1 ? exact[0] : gevonden.length === 1 ? gevonden[0] : undefined)?.id
+  const een = exact.length === 1 ? exact[0] : gevonden.length === 1 ? gevonden[0] : undefined
+  return een ? [een.id] : []
+}
+
+/** Alle facturen (geen concepten) van een of meer Moneybird-contacten. */
+export async function facturenVan(contacten: string[]): Promise<Factuur[]> {
+  const alle: Factuur[] = []
+  for (const contact of contacten) {
+    for (let page = 1; page <= 10; page++) {
+      const rows = await mb<Factuur[]>(`sales_invoices.json?filter=${encodeURIComponent(`contact_id:${contact},state:open|pending_payment|reminded|late|paid|uncollectible`)}&per_page=100&page=${page}`)
+      alle.push(...rows.filter((f) => f.contact_id === contact && f.invoice_id && f.state !== 'draft'))
+      if (rows.length < 100) break
+    }
+  }
+  return alle
 }
 
 async function pdfOpslaan(pad: string, buf: ArrayBuffer) {
@@ -38,26 +53,24 @@ async function pdfVan(factuurId: string): Promise<ArrayBuffer> {
   return r.arrayBuffer()
 }
 
-export async function facturenNaarDossiers(opties: { klant?: string; max?: number } = {}) {
+export async function facturenNaarDossiers(opties: { klant?: string; max?: number; proef?: boolean } = {}) {
   const max = Math.min(opties.max ?? 12, 40)
   const filter = opties.klant ? `&id=eq.${encodeURIComponent(opties.klant)}` : ''
   const klanten = await sb<{ id: string; data: Record<string, any> }[]>(`clients?select=id,data${filter}`)
   let gedaan = 0
   let resterend = 0
-  const verslag: { klant: string; contact: boolean; nieuw: number; totaal: number; fout?: string }[] = []
+  const verslag: { klant: string; contact: boolean; nieuw: number; totaal: number; fout?: string; facturen?: string[] }[] = []
 
   for (const k of klanten) {
     const naam = k.data.name ?? k.id
     try {
-      const contact = await contactVan(k.data)
-      if (!contact) { verslag.push({ klant: naam, contact: false, nieuw: 0, totaal: 0 }); continue }
-      const alle: Factuur[] = []
-      for (let page = 1; page <= 10; page++) {
-        const rows = await mb<Factuur[]>(`sales_invoices.json?filter=${encodeURIComponent(`contact_id:${contact},state:open|pending_payment|reminded|late|paid|uncollectible`)}&per_page=100&page=${page}`)
-        alle.push(...rows)
-        if (rows.length < 100) break
+      const contacten = await contactenVan(k.data)
+      if (!contacten.length) { verslag.push({ klant: naam, contact: false, nieuw: 0, totaal: 0 }); continue }
+      const facturen = await facturenVan(contacten)
+      if (opties.proef) {
+        verslag.push({ klant: naam, contact: true, nieuw: 0, totaal: facturen.length, facturen: facturen.map((f) => `${f.invoice_id} · ${f.invoice_date} · ${f.reference ?? ''} · € ${f.total_price_incl_tax} · contact ${f.contact_id}`) })
+        continue
       }
-      const facturen = alle.filter((f) => f.contact_id === contact && f.invoice_id && f.state !== 'draft')
       const bestanden: Bestand[] = [...(k.data.bestanden ?? [])]
       const al = new Set(bestanden.map((b) => b.id))
       const todo = facturen.filter((f) => !al.has(`mb-${f.id}`))
