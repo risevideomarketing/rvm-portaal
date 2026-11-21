@@ -4,6 +4,7 @@
 // Spreekt het MCP-protocol (JSON-RPC over HTTP, zonder sessie). Schrijft met de service role, dus net als een beheerder.
 import { timingSafeEqual } from 'node:crypto'
 import { sb } from '../lib/rise.mts'
+import { koppelingen } from '../lib/status.mts'
 
 const TABELLEN = ['tasks', 'contacts', 'clients', 'projects', 'kennisbank', 'opdrachten'] as const
 type Tabel = (typeof TABELLEN)[number]
@@ -29,6 +30,12 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { tabel: { type: 'string', enum: TABELLEN }, id: { type: 'string' }, data: { type: 'object', description: 'Velden om te zetten' }, vervangen: { type: 'boolean', description: 'true = hele rij vervangen in plaats van samenvoegen' } }, required: ['tabel', 'id', 'data'] },
   },
   { name: 'verwijder', description: 'Rij verwijderen. Alleen gebruiken als Daan daarom vraagt.', inputSchema: { type: 'object', properties: { tabel: { type: 'string', enum: TABELLEN }, id: { type: 'string' } }, required: ['tabel', 'id'] } },
+  {
+    name: 'bestand_importeren',
+    description: 'Download een bestand van een https-link (bijv. een afbeelding uit Notion) en zet het in de privé-opslag (bucket bestanden). Geeft het pad terug. Max 25 MB.',
+    inputSchema: { type: 'object', properties: { url: { type: 'string' }, pad: { type: 'string', description: 'Bijv. kennisbank/creative-engine/plaatje.png (map kennisbank/ of klant/<id>/)' } }, required: ['url', 'pad'] },
+  },
+  { name: 'koppelingen', description: 'Test of Moneybird, Slack, Google Agenda, mail en de database echt werken, met de foutmelding als iets niet werkt.', inputSchema: { type: 'object', properties: {} } },
   { name: 'overzicht', description: 'Snel overzicht: open taken per persoon, deadlines deze week, deals per fase, klanten.', inputSchema: { type: 'object', properties: {} } },
 ]
 
@@ -36,6 +43,25 @@ const geldig = (t: unknown): t is Tabel => TABELLEN.includes(t as Tabel)
 const enc = encodeURIComponent
 
 async function voerUit(naam: string, a: Record<string, any>): Promise<unknown> {
+  if (naam === 'koppelingen') return koppelingen()
+  if (naam === 'bestand_importeren') {
+    const url = String(a.url ?? '')
+    const pad = String(a.pad ?? '').replace(/^\/+/, '')
+    if (!/^https:\/\//.test(url)) throw new Error('Alleen https-links')
+    if (!/^(kennisbank|klant)\/[\w./ -]+$/.test(pad) || pad.includes('..')) throw new Error('Pad moet beginnen met kennisbank/ of klant/')
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Downloaden mislukt (${res.status})`)
+    const buf = await res.arrayBuffer()
+    if (buf.byteLength > 25 * 1024 * 1024) throw new Error('Bestand is groter dan 25 MB')
+    const sleutel = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const up = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/bestanden/${pad.split('/').map(encodeURIComponent).join('/')}`, {
+      method: 'POST',
+      headers: { apikey: sleutel, Authorization: `Bearer ${sleutel}`, 'Content-Type': res.headers.get('content-type') ?? 'application/octet-stream', 'x-upsert': 'true' },
+      body: buf,
+    })
+    if (!up.ok) throw new Error(`Opslaan mislukt (${up.status}): ${(await up.text()).slice(0, 160)}`)
+    return { ok: true, pad, bytes: buf.byteLength }
+  }
   if (naam === 'overzicht') {
     const [taken, contacten, klanten] = await Promise.all([
       sb<{ data: any }[]>('tasks?select=data'), sb<{ data: any }[]>('contacts?select=data'), sb<{ data: any }[]>('clients?select=data'),
