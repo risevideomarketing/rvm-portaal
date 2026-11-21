@@ -12,7 +12,7 @@ import { PHASES, TRAJECTEN, faseVan, fasenVan } from '../data/mock'
 import type { Client, ContentPlek, Phase, Project, Task } from '../data/types'
 import { frameLinkVolledig, giveAccess, klantFacturen, weekoverzichtNu, type KlantFactuur } from '../slack'
 import { uid, useMag, useStore } from '../store'
-import { bronVan, euro, fmtDate, pakketNaam } from '../utils'
+import { bezigMet, bronVan, euro, fmtDate, pakketNaam } from '../utils'
 import { Contactpersonen } from './Crm'
 import { SnelleTaak, TaskTable } from './Taken'
 
@@ -64,6 +64,7 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
   const { s, d } = useStore()
   const [task, setTask] = useState<Task | null>(null)
   const contact = s.contacts.find((c) => c.id === client.contactId)
+  useEffect(() => bezigMet(client.id), [client.id])
   // Taken van een project staan op de projectpagina; hier alleen de losse taken voor deze klant (nooit dubbel)
   const projectIds = new Set(s.projects.filter((p) => p.clientId === client.id).map((p) => p.id))
   const tasks = s.tasks.filter((t) => (t.clientId === client.id || (client.contactId && t.contactId === client.contactId)) && !(t.projectId && projectIds.has(t.projectId))).sort((a, b) => a.deadline.localeCompare(b.deadline))

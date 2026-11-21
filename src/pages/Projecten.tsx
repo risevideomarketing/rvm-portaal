@@ -66,7 +66,7 @@ export function Projecten({ soort, id, go }: { soort: Soort; id?: string; go: (r
   const fasen = fasenVoor(soort)
   const alle = s.projects.filter((p) => soortVan(p) === soort)
   const zichtbaar = alle.filter((p) => (filter === 'all' || p.contentSoort === filter) && (klant === 'all' || p.clientId === klant))
-  const takenVan = (p: Project) => s.tasks.filter((t) => t.projectId === p.id)
+  const takenVan = (p: Project) => s.tasks.filter((t) => t.projectId === p.id && !t.auto?.startsWith('traject:'))
   const zetWeergave = (w: 'bord' | 'lijst') => { setWeergave(w); localStorage.setItem(`rise-${soort}-weergave`, w) }
   const klantenMetProductie = s.clients.filter((c) => alle.some((p) => p.clientId === c.id))
 
@@ -254,7 +254,7 @@ function ProjectPagina({ project, go }: { project: Project; go: (r: string) => v
   const [open, setOpen] = useState<Task | null>(null)
   const [klaarTonen, setKlaarTonen] = useState(false)
   const [link, setLink] = useState({ title: '', url: '' })
-  const taken = s.tasks.filter((t) => t.projectId === project.id)
+  const taken = s.tasks.filter((t) => t.projectId === project.id && !t.auto?.startsWith('traject:'))
   const openTaken = taken.filter((t) => t.status !== 'klaar').sort((a, b) => Number(Boolean(b.inTodo)) - Number(Boolean(a.inTodo)) || (a.deadline || '9').localeCompare(b.deadline || '9'))
   const klaar = taken.filter((t) => t.status === 'klaar')
   const v = voortgang(taken)

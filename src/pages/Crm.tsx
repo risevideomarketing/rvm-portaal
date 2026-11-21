@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import { MerkLogo, MerkVelden } from '../components/Logo'
 import { TaskDrawer, newTask } from '../components/TaskDrawer'
 import { Avatar, DemoNote, Drawer, Icon, PageHead, Segmented, personName } from '../components/ui'
-import { ALLE_STAGES, STAGES, TEAM, TRAJECTEN, faseVan, isKlant, pipelineItems, type PipelineItem } from '../data/mock'
+import { ALLE_STAGES, PHASES, STAGES, TEAM, TRAJECTEN, faseVan, isKlant, pipelineItems, type PipelineItem } from '../data/mock'
 import type { Client, Contact, Contactpersoon, Deal, PersonId, Stage, Task, TimelineKind } from '../data/types'
 import { uid, useMag, useStore } from '../store'
 import { alleOffertes, type Offerte } from '../slack'
-import { euro, fmtDate, fmtDateTime, slug, standaardAfVoor } from '../utils'
+import { bezigMet, euro, fmtDate, fmtDateTime, laatstBezig, slug, standaardAfVoor } from '../utils'
 import { TaskTable } from './Taken'
 
 /** Opvolgdatum, met jaartal (de meeste liggen maanden vooruit). */
@@ -32,24 +32,38 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
   const kan = useMag()
   const [drag, setDrag] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
-  const [nieuwIn, setNieuwIn] = useState<Stage | null>(null)
+  const [nieuw, setNieuw] = useState<{ stage: Stage; clientId?: string } | null>(null)
+  const nieuwIn = nieuw?.stage ?? null
+  const setNieuwIn = (st: Stage | null) => setNieuw(st ? { stage: st } : null)
   const open = s.contacts.find((c) => c.id === openId) ?? null
 
-  /** Nieuwe deal: wat we verkopen staat voorop; bij een bestaand bedrijf komt de deal bij dat contact. */
-  const maak = (titel: string, bedrijf: string, stage: Stage) => {
-    if (!bedrijf.trim()) return
-    const deal: Deal = { id: uid(), titel: titel.trim(), stage, value: 0, owner: s.me, createdAt: new Date().toISOString() }
-    const bestaand = s.contacts.find((c) => c.company.trim().toLowerCase() === bedrijf.trim().toLowerCase())
+  /** Akkoord op een opdracht van een klant met dossier: er komt meteen een project in het dossier (één per offerte). */
+  const projectBijAkkoord = (contactId: string, deal: Deal): Deal => {
+    const client = s.clients.find((x) => x.contactId === contactId)
+    if (!client || deal.projectId || !isKlant(deal.stage)) return deal
+    const id = uid()
+    const fasen = TRAJECTEN.find((t) => t.naam === deal.dienst || t.naam === deal.titel)?.fasen ?? PHASES
+    d({ type: 'project:upsert', project: { id, name: deal.titel || 'Nieuw project', soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', bedrag: deal.value || undefined, wie: [deal.owner ?? s.me], createdAt: new Date().toISOString(), updates: [], phases: fasen, doneSteps: [], phase: 0 } })
+    return { ...deal, projectId: id }
+  }
+
+  /** Nieuwe opdracht (offerte): bij een bestaand bedrijf of klantdossier komt hij bij dat contact. Eén klant kan zoveel opdrachten hebben als je wilt. */
+  const maak = (titel: string, bedrijf: string, stage: Stage, clientId?: string) => {
+    if (!bedrijf.trim() && !clientId) return
+    let deal: Deal = { id: uid(), titel: titel.trim(), stage, value: 0, owner: s.me, createdAt: new Date().toISOString() }
+    const client = clientId ? s.clients.find((x) => x.id === clientId) : undefined
+    const bestaand = (client && s.contacts.find((c) => c.id === client.contactId)) ?? s.contacts.find((c) => c.company.trim().toLowerCase() === bedrijf.trim().toLowerCase())
+    setNieuw(null)
     if (bestaand) {
+      deal = projectBijAkkoord(bestaand.id, deal)
       d({ type: 'contact:patch', id: bestaand.id, patch: { deals: [...(bestaand.deals ?? []), deal] } })
-      setNieuwIn(null)
-      setOpenId(bestaand.id)
+      if (client) bezigMet(client.id)
       return
     }
-    const c: Contact = { id: uid(), name: '', company: bedrijf.trim(), role: '', email: '', phone: '', stage: isKlant(stage) ? stage : stage, value: 0, owner: s.me, source: '', timeline: [], deals: titel.trim() ? [deal] : [] }
+    const c: Contact = { id: uid(), name: '', company: (client?.name ?? bedrijf).trim(), role: '', email: '', phone: '', stage: client ? 'klant' : stage, value: 0, owner: s.me, source: '', timeline: [], deals: titel.trim() ? [deal] : [] }
     d({ type: 'contact:upsert', contact: c })
-    setNieuwIn(null)
-    setOpenId(c.id)
+    if (client) { d({ type: 'client:upsert', client: { ...client, contactId: c.id } }); bezigMet(client.id) }
+    else setOpenId(c.id)
   }
   /** Verslepen: een deal verhuist zelf; wordt hij klant, dan wordt het bedrijf ook klant. */
   const verplaats = (key: string, stage: Stage) => {
@@ -57,7 +71,9 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
     const c = s.contacts.find((x) => x.id === cid)
     if (!c) return
     if (soort === 'c') return d({ type: 'contact:stage', id: c.id, stage })
-    d({ type: 'contact:patch', id: c.id, patch: { deals: (c.deals ?? []).map((x) => (x.id === did ? { ...x, stage } : x)), ...(isKlant(stage) && !isKlant(c.stage) ? { stage } : {}) } })
+    d({ type: 'contact:patch', id: c.id, patch: { deals: (c.deals ?? []).map((x) => (x.id === did ? projectBijAkkoord(c.id, { ...x, stage }) : x)), ...(isKlant(stage) && !isKlant(c.stage) ? { stage } : {}) } })
+    const client = s.clients.find((x) => x.contactId === c.id)
+    if (client) bezigMet(client.id)
   }
   /** Klant met profiel: naar het profiel. Anders: het contactvenster. */
   const openKaart = (c: Contact) => {
@@ -76,9 +92,9 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
     if (!doel) return
     if (deal && doel.id !== c.id) {
       d({ type: 'contact:patch', id: c.id, patch: { deals: (c.deals ?? []).filter((x) => x.id !== did) } })
-      d({ type: 'contact:patch', id: doel.id, patch: { stage: 'klant', deals: [...(doel.deals ?? []), { ...deal, stage: 'klant' }] } })
+      d({ type: 'contact:patch', id: doel.id, patch: { stage: 'klant', deals: [...(doel.deals ?? []), projectBijAkkoord(doel.id, { ...deal, stage: 'klant' })] } })
     } else {
-      d({ type: 'contact:patch', id: c.id, patch: { stage: 'klant', ...(deal ? { deals: (c.deals ?? []).map((x) => (x.id === did ? { ...x, stage: 'klant' as Stage } : x)) } : {}) } })
+      d({ type: 'contact:patch', id: c.id, patch: { stage: 'klant', ...(deal ? { deals: (c.deals ?? []).map((x) => (x.id === did ? projectBijAkkoord(c.id, { ...x, stage: 'klant' as Stage }) : x)) } : {}) } })
     }
     const bestaand = client ?? s.clients.find((x) => x.contactId === doel.id)
     if (bestaand) return go(`klanten/${bestaand.id}`)
@@ -107,7 +123,7 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
             const total = col.reduce((a, it) => a + it.value, 0)
             return (
               <div key={st.key} className={`board-col ${drag ? 'droppable' : ''}`} style={{ background: st.kolom }} onDragOver={(e) => e.preventDefault()}
-                onDrop={() => { if (drag) verplaats(drag, st.key as Stage); setDrag(null) }}>
+                onDrop={() => { if (drag?.startsWith('k:')) setNieuw({ stage: st.key as Stage, clientId: drag.slice(2) }); else if (drag) verplaats(drag, st.key as Stage); setDrag(null) }}>
                 <div className="board-col-head">
                   <span className="fase-pil" style={{ color: st.kleur, background: st.bg }}><i style={{ background: st.kleur }} />{st.label}</span>
                   <span className="count">{col.length}</span>
@@ -117,7 +133,7 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
                 {col.length === 0 && st.key === 'koud' && <p className="muted small" style={{ margin: '4px 4px 8px' }}>Nog geen koude prospects.</p>}
                 {col.map((it) => <DealKaart key={it.key} it={it} onDrag={setDrag} onOpen={() => openKaart(it.contact)} />)}
                 {kan('crm_bewerken') && (nieuwIn === st.key ? (
-                  <NieuweDeal onKlaar={(titel, bedrijf) => maak(titel, bedrijf, st.key as Stage)} onStop={() => setNieuwIn(null)} />
+                  <NieuweDeal key={nieuw?.clientId ?? 'leeg'} klant={s.clients.find((x) => x.id === nieuw?.clientId)?.name} onKlaar={(titel, bedrijf) => maak(titel, bedrijf, st.key as Stage, nieuw?.clientId)} onStop={() => setNieuwIn(null)} />
                 ) : <button className="kolom-nieuw" onClick={() => setNieuwIn(st.key as Stage)}><Icon name="plus" size={13} /> Nieuw</button>)}
               </div>
             )
@@ -126,7 +142,7 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
         </div>
       )}
 
-      {weergave === 'pipeline' && <KlantDossiers drag={drag} onDrop={naarDossier} go={go} />}
+      {weergave === 'pipeline' && <KlantDossiers drag={drag} setDrag={setDrag} onDrop={naarDossier} go={go} />}
 
       {open && <ContactDrawer contact={open} onClose={() => setOpenId(null)} go={go} />}
     </>
@@ -188,29 +204,45 @@ function OffertesLijst({ onOpen }: { onOpen: (klant: string) => void }) {
 }
 
 /** Alle klantdossiers als blokken onder de pipeline. Sleep een opdracht op een klant (of op het blok voor een nieuwe klant). */
-function KlantDossiers({ drag, onDrop, go }: { drag: string | null; onDrop: (key: string, client?: Client) => void; go: (r: string) => void }) {
+function KlantDossiers({ drag, setDrag, onDrop, go }: { drag: string | null; setDrag: (k: string | null) => void; onDrop: (key: string, client?: Client) => void; go: (r: string) => void }) {
   const { s } = useStore()
   const kan = useMag()
   const [boven, setBoven] = useState<string | null>(null)
   if (!kan('klanten')) return null
+  // Recent bovenaan: dossier geopend, contact, opdracht, project, update of taak
+  const bezig = laatstBezig()
+  const recent = (c: Client) => {
+    const contact = s.contacts.find((x) => x.id === c.contactId)
+    const projecten = s.projects.filter((p) => p.clientId === c.id)
+    const pids = new Set(projecten.map((p) => p.id))
+    const data = [
+      bezig[c.id], c.start, contact?.timeline[0]?.at, ...(contact?.deals ?? []).map((x) => x.createdAt),
+      ...projecten.flatMap((p) => [p.createdAt, p.updates[0]?.at]),
+      ...s.tasks.filter((t) => t.clientId === c.id || (t.projectId && pids.has(t.projectId))).flatMap((t) => [t.updatedAt, t.startedAt, t.comments[t.comments.length - 1]?.at]),
+    ]
+    const r = (data.filter(Boolean) as string[]).sort()
+    return r[r.length - 1] ?? ''
+  }
+  const klanten = [...s.clients].map((c) => ({ c, r: recent(c) })).sort((a, b) => b.r.localeCompare(a.r)).map((x) => x.c)
   return (
     <section className={`card crm-dossiers ${drag ? 'droppable' : ''} ${boven === 'blok' ? 'boven' : ''}`}
-      onDragOver={(e) => { e.preventDefault(); if (boven !== 'blok' && !(e.target as HTMLElement).closest('.klant-vakje')) setBoven('blok') }}
+      onDragOver={(e) => { if (drag?.startsWith('k:')) return; e.preventDefault(); if (boven !== 'blok' && !(e.target as HTMLElement).closest('.klant-vakje')) setBoven('blok') }}
       onDragLeave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setBoven(null) }}
-      onDrop={(e) => { e.preventDefault(); setBoven(null); if (drag && !(e.target as HTMLElement).closest('.klant-vakje')) onDrop(drag) }}>
+      onDrop={(e) => { e.preventDefault(); setBoven(null); if (drag && !drag.startsWith('k:') && !(e.target as HTMLElement).closest('.klant-vakje')) onDrop(drag) }}>
       <div className="section-row" style={{ marginTop: 0 }}>
         <h3 className="section-title">Klantdossiers <span className="muted small">({s.clients.length})</span></h3>
-        <span className="muted small">{drag ? 'Laat los op een klant, of hier voor een nieuwe klant' : 'Sleep een opdracht hierheen als de klant akkoord is'}</span>
+        <span className="muted small">{drag?.startsWith('k:') ? 'Laat los in een fase hierboven voor een nieuwe offerte' : drag ? 'Laat los op een klant, of hier voor een nieuwe klant' : 'Recent bovenaan · sleep een klant omhoog voor een nieuwe offerte'}</span>
       </div>
       <div className="klant-vakjes">
-        {s.clients.map((c) => {
+        {klanten.map((c) => {
           const merk = s.contacts.find((x) => x.id === c.contactId)
           const lopend = s.projects.filter((p) => p.soort === 'productie' && p.clientId === c.id && p.fase !== 'live').length
           return (
             <button key={c.id} className={`klant-vakje ${boven === c.id ? 'boven' : ''}`} onClick={() => go(`klanten/${c.id}`)}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(c.id) }}
+              draggable={kan('crm_bewerken')} onDragStart={() => setDrag(`k:${c.id}`)} onDragEnd={() => setTimeout(() => setDrag(null), 0)}
+              onDragOver={(e) => { if (drag?.startsWith('k:')) return; e.preventDefault(); e.stopPropagation(); setBoven(c.id) }}
               onDragLeave={() => setBoven(null)}
-              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(null); if (drag) onDrop(drag, c) }}>
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(null); if (drag && !drag.startsWith('k:')) onDrop(drag, c) }}>
               <MerkLogo merk={merk} naam={c.name} size={36} />
               <span className="klant-vakje-tekst">
                 <strong>{c.name}</strong>
@@ -225,15 +257,15 @@ function KlantDossiers({ drag, onDrop, go }: { drag: string | null; onDrop: (key
   )
 }
 
-function NieuweDeal({ onKlaar, onStop }: { onKlaar: (titel: string, bedrijf: string) => void; onStop: () => void }) {
+function NieuweDeal({ klant, onKlaar, onStop }: { klant?: string; onKlaar: (titel: string, bedrijf: string) => void; onStop: () => void }) {
   const { s } = useStore()
   const [titel, setTitel] = useState('')
-  const [bedrijf, setBedrijf] = useState('')
+  const [bedrijf, setBedrijf] = useState(klant ?? '')
   const klaar = () => bedrijf.trim() && onKlaar(titel, bedrijf)
   return (
     <div className="board-card nieuw-kaart">
       <input autoFocus placeholder="Project of video, bijv. Bedrijfsfilm 2027" value={titel} list="deal-diensten" onChange={(e) => setTitel(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Escape') onStop() }} />
+        onKeyDown={(e) => { if (e.key === 'Enter' && klant) klaar(); if (e.key === 'Escape') onStop() }} />
       <datalist id="deal-diensten">{TRAJECTEN.map((t) => <option key={t.naam} value={t.naam} />)}</datalist>
       <input placeholder="Klant of bedrijf" value={bedrijf} list="deal-bedrijven" onChange={(e) => setBedrijf(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') klaar(); if (e.key === 'Escape') onStop() }} />
