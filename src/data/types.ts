@@ -196,6 +196,8 @@ export interface Client {
   hulpvragen?: Hulpvraag[]
   /** Moneybird-contact voor de facturen in het portaal. Leeg = zoeken op bedrijfsnaam. */
   moneybirdContactId?: string
+  /** Meerdere Moneybird-contacten (bijv. aparte contactpersonen); gaat voor moneybirdContactId. */
+  moneybirdContactIds?: string[]
   /** Mailadressen van de klant die geen taakmails meer willen (afgemeld via de link in de mail). */
   mailUit?: string[]
   /** Indeling van het klantportaal (leeg = 1, de Cockpit; 0 = de oorspronkelijke; 2 t/m 6 = Tabbladen, Bento, Tijdlijn, Verhaal, Jij-Rise-Klaar). */

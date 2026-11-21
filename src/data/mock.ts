@@ -144,8 +144,7 @@ export const STAGES = [
   { key: 'gemaild', label: 'Gemaild', kleur: '#2B6E99', bg: '#DCEBF5', kolom: '#EEF5FA' },
   { key: 'lead', label: 'Lead', kleur: '#7B4FA0', bg: '#EBE2F3', kolom: '#F5F0F9' },
   { key: 'voorstel', label: 'Voorstel gestuurd', kleur: '#B85F0B', bg: '#FAE3CC', kolom: '#FCF2E8' },
-  { key: 'klant', label: 'Klant', kleur: '#3B7354', bg: '#DCEBDF', kolom: '#EEF5EF' },
-  { key: 'extra', label: 'Klant · Extra aandacht', kleur: '#B33E39', bg: '#F8DCDA', kolom: '#FCEFEE' },
+  { key: 'klant', label: 'Akkoord op offerte', kleur: '#3B7354', bg: '#DCEBDF', kolom: '#EEF5EF' },
 ] as const
 /** Alle fasen, ook 'afgehandeld' (staat niet meer in de pipeline, wel bij Alle contacten). */
 export const ALLE_STAGES = [...STAGES, { key: 'afgehandeld', label: 'Afgehandeld', kleur: '#6F6E69', bg: '#EDEDEB', kolom: '#F4F4F2' }] as const
@@ -231,7 +230,8 @@ export function pipelineItems(contacts: Contact[]): PipelineItem[] {
   return contacts.flatMap((c) => {
     const deals = c.deals ?? []
     const items: PipelineItem[] = deals.map((d) => ({ key: `d:${c.id}:${d.id}`, contact: c, deal: d, stage: d.stage, value: d.value, titel: d.titel || c.company }))
-    const eigen = deals.length === 0 || (isKlant(c.stage) && !deals.some((d) => isKlant(d.stage)))
+    // Bestaande klanten zonder lopende deal staan niet in de pipeline maar onderaan bij Klantdossiers
+    const eigen = deals.length === 0 && !isKlant(c.stage)
     if (eigen) items.push({ key: `c:${c.id}`, contact: c, stage: c.stage, value: deals.length ? 0 : c.value, titel: c.company })
     return items
   })
