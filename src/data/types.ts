@@ -428,6 +428,8 @@ export interface Article {
   images?: { src: string; alt: string }[]
   /** Ook tonen in de kennisbank van het klantportaal. */
   klant?: boolean
+  /** Alleen voor deze klanten (leeg = alle klanten). */
+  klanten?: string[]
   /** Inhoud precies zoals in Notion (Notion-markdown met kolommen, toggles, callouts, tabbladen). */
   notion?: string
   /** Waar het in Notion stond, bijv. "Rise | Intern" of "Rise | Resources". */
