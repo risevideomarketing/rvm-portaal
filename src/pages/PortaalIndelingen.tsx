@@ -6,6 +6,7 @@ import { ContentBekijken, ContentKalender, StatusPil, isMail } from '../componen
 import { FrameEmbed } from '../components/FrameEmbed'
 import { StrippenkaartKlant, stripTelling } from '../components/Strippenkaart'
 import { Icon } from '../components/ui'
+import { openLink } from '../bestanden'
 import { faseVan, fasenVan } from '../data/mock'
 import { NotionInhoud } from '../components/NotionInhoud'
 import { artikelenNu } from '../kennis'
@@ -499,15 +500,31 @@ function JijRiseKlaar(p: P) {
 /** Index 0 = de oorspronkelijke indeling (in Portaal.tsx). */
 
 /* ── Service (standaard voor Rise Video Marketing): de klant hoeft niets te doen, hij ziet wat hij krijgt ── */
-const FASE_KLANT: Record<ProductieFase, string> = {
-  productie: 'In voorbereiding',
-  filmen: 'We filmen',
-  edit1: 'In montage',
-  edit2: 'Laatste hand',
-  feedback: 'Klaar om te bekijken',
+const FASE_STAP: Record<ProductieFase, number> = { productie: 1, filmen: 2, edit1: 3, edit2: 4, feedback: 4, live: 5 }
+/** Wat we op dit moment doen, per fase (voor de klant). */
+const FASE_NU: Record<ProductieFase, string> = {
+  productie: 'We bereiden de opnames voor: concept, script en planning',
+  filmen: 'We zijn aan het filmen',
+  edit1: 'We monteren de eerste versie',
+  edit2: 'We verwerken je feedback en maken de video af',
+  feedback: 'De versie staat klaar, we wachten op jouw feedback',
   live: 'Opgeleverd',
 }
-const FASE_STAP: Record<ProductieFase, number> = { productie: 1, filmen: 2, edit1: 3, edit2: 4, feedback: 4, live: 5 }
+const STAPPEN = ['Voorbereiding', 'Filmen', 'Montage', 'Laatste hand', 'Opgeleverd']
+
+/** Statusbalk per video: vijf stappen, de huidige gemarkeerd, en wat we nu doen. */
+function VideoStatus({ x, vandaag }: { x: { id: string; name: string; fase: ProductieFase; deadline?: string }; vandaag: string }) {
+  const stap = FASE_STAP[x.fase]
+  return (
+    <li className="sv-video">
+      <div className="sv-video-kop"><strong>{x.name}</strong>{x.deadline && x.deadline >= vandaag && <span className="sv-video-datum">verwacht rond {kort(x.deadline)}</span>}</div>
+      <ol className="sv-video-stappen" aria-label={`Stap ${stap} van 5`}>
+        {STAPPEN.map((naam, i) => <li key={naam} className={i + 1 < stap ? 'klaar' : i + 1 === stap ? 'nu' : ''}><i /><span>{naam}</span></li>)}
+      </ol>
+      <span className="sv-video-nu">Nu: {FASE_NU[x.fase]}</span>
+    </li>
+  )
+}
 
 
 /** De klant levert zelf iets aan: een link, een bestand of een datum. Komt bij Rise binnen als taak. */
@@ -519,10 +536,19 @@ function KlantToevoegen({ client, onToevoegen }: { client: Client; onToevoegen?:
   const [bestand, setBestand] = useState<File | null>(null)
   const [bezig, setBezig] = useState(false)
   const [melding, setMelding] = useState<{ ok: boolean; tekst: string } | null>(null)
-  const eigen = [
-    ...(client.links ?? []).filter((l) => (l as { doorKlant?: boolean }).doorKlant).map((l) => ({ id: l.id, naam: l.title, at: l.at })),
-    ...(client.bestanden ?? []).filter((b) => (b as { doorKlant?: boolean }).doorKlant).map((b) => ({ id: b.id, naam: b.naam, at: b.at })),
-  ].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 4)
+  const [alles, setAlles] = useState(false)
+  const alleEigen = [
+    ...(client.links ?? []).filter((l) => (l as { doorKlant?: boolean }).doorKlant).map((l) => ({ id: l.id, naam: l.title, at: l.at, open: async () => l.url })),
+    ...(client.bestanden ?? []).filter((b) => (b as { doorKlant?: boolean }).doorKlant).map((b) => ({ id: b.id, naam: b.naam, at: b.at, open: () => openLink(b) })),
+  ].sort((a, b) => b.at.localeCompare(a.at))
+  const eigen = alles ? alleEigen : alleEigen.slice(0, 5)
+  const openen = async (x: { open: () => Promise<string | null | undefined> }) => {
+    // Venster direct openen (anders blokkeert de browser de pop-up), daarna de tijdelijke link erin zetten
+    const w = window.open('', '_blank')
+    const url = await x.open()
+    if (url && w) w.location.href = url
+    else { w?.close(); setMelding({ ok: false, tekst: 'Openen lukte niet. Probeer het later nog eens.' }) }
+  }
   const klaar = soort === 'link' ? url.trim().length > 3 : soort === 'datum' ? Boolean(datum && titel.trim()) : Boolean(bestand)
   const stuur = async () => {
     if (!onToevoegen) return setMelding({ ok: false, tekst: 'Dit werkt alleen als de klant zelf is ingelogd.' })
@@ -549,7 +575,13 @@ function KlantToevoegen({ client, onToevoegen }: { client: Client; onToevoegen?:
         <button className="btn primary small" disabled={!klaar || bezig} onClick={stuur}>{bezig ? 'Versturen…' : 'Versturen'}</button>
       </div>
       {melding && <p className="small" style={{ color: melding.ok ? 'var(--green, #30A46C)' : '#c0392b', margin: '8px 0 0' }}>{melding.tekst}</p>}
-      {eigen.length > 0 && <ul className="sv-eigen">{eigen.map((x) => <li key={x.id}><Icon name="check" size={13} /><span>{x.naam}</span><span className="muted small">{kort(x.at.slice(0, 10))}</span></li>)}</ul>}
+      {eigen.length > 0 && (
+        <>
+          <p className="sv-eigen-kop" style={{ borderTop: "1px solid var(--line)", paddingTop: 12 }}>Wat je hebt aangeleverd</p>
+          <ul className="sv-eigen">{eigen.map((x) => <li key={x.id}><button className="sv-eigen-knop" onClick={() => openen(x)}><Icon name="check" size={13} /><span>{x.naam}</span><span className="muted small">{kort(x.at.slice(0, 10))}</span><Icon name="arrow" size={13} /></button></li>)}</ul>
+          {alleEigen.length > 5 && <button className="link small" onClick={() => setAlles(!alles)}>{alles ? 'Minder tonen' : `Alles tonen (${alleEigen.length})`}</button>}
+        </>
+      )}
     </section>
   )
 }
@@ -560,10 +592,6 @@ function Service(p: P) {
   const producties = client.producties ?? []
   const lopend = producties.filter((x) => x.fase !== 'live')
   const klaar = producties.filter((x) => x.fase === 'live')
-  const gedaan = producties
-    .flatMap((x) => x.updates.map((u, i) => ({ id: `${x.id}-${i}`, datum: u.date, tekst: u.text, productie: x.name })))
-    .sort((a, b) => b.datum.localeCompare(a.datum))
-    .slice(0, 6)
   const volgende = g.komend.find((m) => m.soort !== 'taak')
   const heeftKalender = (client.kanalen ?? []).length > 0
   const [tab, setTab] = useState<'overzicht' | 'content' | 'geld' | 'strippenkaart'>('overzicht')
@@ -599,8 +627,8 @@ function Service(p: P) {
         <div className="sv-hero-tekst">
           <span className="sv-kicker">Status{g.pakket ? ` · ${g.pakket}` : ''}</span>
           {lopend.length === 0 ? <h2>{g.titel}</h2> : (
-            <ul className="sv-status">
-              {lopend.map((x) => <li key={x.id}><strong>{x.name}</strong><span>{FASE_KLANT[x.fase]}{x.deadline && x.deadline >= g.vandaag ? ` · verwacht rond ${kort(x.deadline)}` : ''}</span></li>)}
+            <ul className="sv-videos">
+              {lopend.map((x) => <VideoStatus key={x.id} x={x} vandaag={g.vandaag} />)}
             </ul>
           )}
           <p>{status}</p>
@@ -631,39 +659,10 @@ function Service(p: P) {
       </ol>
 
       <div className="portal-grid portal-grid-2 sv-rij">
-        <section className="portal-card sv-werk">
-          <Icon name="film" size={22} />
-          <h3>Waar we nu aan werken</h3>
-          {lopend.length === 0 ? (
-            <p className="muted">{klaar.length ? 'Alles is opgeleverd. Zodra er iets nieuws in productie gaat, zie je het hier.' : 'Zodra we aan je productie beginnen, zie je hier per video hoe ver we zijn.'}</p>
-          ) : (
-            <ul className="sv-producties">
-              {lopend.map((x) => (
-                <li key={x.id}>
-                  <div className="sv-prod-kop"><strong>{x.name}</strong><span className={`sv-fase f-${x.fase}`}>{FASE_KLANT[x.fase]}</span></div>
-                  <div className="sv-prod-balk"><i style={{ width: `${(FASE_STAP[x.fase] / 5) * 100}%` }} /></div>
-                  <span className="muted small">{x.deadline && x.deadline >= g.vandaag ? `Verwacht rond ${kort(x.deadline)}` : 'Planning volgt'}{x.updates[0] ? ` · ${x.updates[0].text}` : ''}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
         <section className="portal-card">
           <Icon name="calendar" size={22} />
           <h3>Planning</h3>
           <Momenten lijst={g.komend.filter((m) => m.soort !== 'content')} leeg="Hier zetten we je draaidag, opleveringen en andere vaste momenten zodra ze vaststaan." max={6} />
-        </section>
-      </div>
-
-      <div className="portal-grid portal-grid-2 sv-rij">
-        <section className="portal-card">
-          <Icon name="note" size={22} />
-          <h3>Wat we voor je deden</h3>
-          {gedaan.length === 0 ? <p className="muted">Hier houden we bij wat we voor je hebben gedaan: opnames, versies, opleveringen.</p> : (
-            <ul className="sv-gedaan">
-              {gedaan.map((u) => <li key={u.id}><span className="sv-gedaan-datum">{kort(u.datum)}</span><span><strong>{u.productie}</strong> <span className="muted">{u.tekst}</span></span></li>)}
-            </ul>
-          )}
         </section>
         <KlantToevoegen client={client} onToevoegen={p.onToevoegen} />
       </div>

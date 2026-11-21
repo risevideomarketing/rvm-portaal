@@ -123,23 +123,27 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
       </div>
       )}
 
+      <div className="two-col dossier-top">
+        <div><KlantProjecten client={client} go={go} /></div>
+        <div>
+          <h3 className="section-title">Bestanden & links</h3>
+          <fieldset className="kaal" disabled={!kan('klanten_bewerken')}><Links client={client} update={update} /></fieldset>
+          <h3 className="section-title" style={{ marginTop: 18 }}>Pdf's en facturen <span className="muted small">(alleen het team)</span></h3>
+          <div className="card">
+            <Bestanden map={`klant/${client.id}`} lijst={client.bestanden ?? []} onChange={(bestanden) => update({ bestanden })} leeg="Nog geen pdf's of bestanden. Bijv. het voorstel, de overeenkomst of brand guidelines." />
+          </div>
+        </div>
+      </div>
+
       <div className="section-row" id="strippenkaart">
         <h3 className="section-title">Strippenkaart <span className="muted small">(vink een strip af als hij gebruikt is, de klant ziet het direct)</span></h3>
       </div>
       <div style={{ marginBottom: 18 }}><StrippenkaartBeheer client={client} /></div>
 
-      <div className="section-row" id="contentkalender">
-        <h3 className="section-title">Contentkalender <span className="muted small">(mails en posts per maand, ook in het portaal en de Planning)</span></h3>
-      </div>
-      <div className="card" style={{ marginBottom: 18 }}>
-        <ContentKalender client={client} update={kan('klanten_bewerken') ? update : undefined} openId={contentItem} />
-      </div>
 
       <div className="two-col">
         <div>
-          <KlantProjecten client={client} go={go} />
-
-          <h3 className="section-title" style={{ marginTop: 18 }}>Taken voor deze klant</h3>
+          <h3 className="section-title">Onze taken</h3>
           <SnelleTaak clientId={client.id} />
           <div className="card flush"><TaskTable tasks={tasks.filter((t) => t.status !== 'klaar')} onOpen={setTask} showClient={false} /></div>
           {tasks.some((t) => t.status === 'klaar') && <p className="muted small">{tasks.filter((t) => t.status === 'klaar').length} afgeronde taken verborgen.</p>}
@@ -151,7 +155,7 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
             </>
           )}
 
-          <h3 className="section-title" style={{ marginTop: 18 }}>Taken voor de klant <span className="muted small">(in het portaal, nieuwe gaan per mail)</span></h3>
+          <h3 className="section-title" style={{ marginTop: 18 }}>Wat de klant moet doen <span className="muted small">(staat in het portaal, nieuwe gaan per mail)</span></h3>
           <fieldset className="kaal" disabled={!kan('klanttaken')}><KlantTaken client={client} update={update} /></fieldset>
 
           <h3 className="section-title" style={{ marginTop: 18 }}>Planning <span className="muted small">(ook zichtbaar voor de klant)</span></h3>
@@ -174,12 +178,7 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
             </>
           )}
 
-          <h3 className="section-title" style={{ marginTop: contact ? 18 : 0 }}>Pdf's en bestanden <span className="muted small">(alleen het team)</span></h3>
-          <div className="card">
-            <Bestanden map={`klant/${client.id}`} lijst={client.bestanden ?? []} onChange={(bestanden) => update({ bestanden })} leeg="Nog geen pdf's of bestanden. Bijv. het voorstel, de overeenkomst of brand guidelines." />
-          </div>
-
-          <h3 className="section-title" style={{ marginTop: 18 }}>Gegevens</h3>
+          <h3 className="section-title" style={{ marginTop: contact ? 18 : 0 }}>Gegevens</h3>
           <fieldset className="kaal" disabled={!kan('klanten_bewerken')}>
           <div className="card info-list">
             <div><span className="muted">Contact</span>{contact ? <button className="link" onClick={() => go('crm')}>{contact.name} · CRM</button> : '—'}</div>
@@ -230,9 +229,6 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
           <h3 className="section-title" style={{ marginTop: 18 }}>Contentplekken <span className="muted small">(Rise en klant kunnen links toevoegen)</span></h3>
           <fieldset className="kaal" disabled={!kan('klanttaken')}><ContentPlekken client={client} update={update} /></fieldset>
 
-          <h3 className="section-title" style={{ marginTop: 18 }}>Bestanden & links</h3>
-          <fieldset className="kaal" disabled={!kan('klanten_bewerken')}><Links client={client} update={update} /></fieldset>
-
           <h3 className="section-title" style={{ marginTop: 18 }}>Toegang tot het portaal</h3>
           <fieldset className="kaal" disabled={!kan('portaaltoegang')}><Toegang client={client} update={update} /></fieldset>
 
@@ -246,6 +242,13 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
             }}>Klantprofiel verwijderen…</button>
           )}
         </div>
+      </div>
+
+      <div className="section-row" id="contentkalender" style={{ marginTop: 24 }}>
+        <h3 className="section-title">Contentkalender <span className="muted small">(mails en posts per maand, ook in het portaal en de Planning)</span></h3>
+      </div>
+      <div className="card" style={{ marginBottom: 18 }}>
+        <ContentKalender client={client} update={kan('klanten_bewerken') ? update : undefined} openId={contentItem} />
       </div>
       {task && <TaskDrawer key={task.id} task={task} onClose={() => setTask(null)} />}
     </>

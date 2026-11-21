@@ -1,11 +1,12 @@
 import { metOngedaan } from '../components/Ongedaan'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { MerkLogo, MerkVelden } from '../components/Logo'
 import { TaskDrawer, newTask } from '../components/TaskDrawer'
 import { Avatar, DemoNote, Drawer, Icon, PageHead, Segmented, personName } from '../components/ui'
 import { ALLE_STAGES, STAGES, TEAM, TRAJECTEN, faseVan, isKlant, pipelineItems, type PipelineItem } from '../data/mock'
-import type { Contact, Contactpersoon, Deal, PersonId, Stage, Task, TimelineKind } from '../data/types'
+import type { Client, Contact, Contactpersoon, Deal, PersonId, Stage, Task, TimelineKind } from '../data/types'
 import { uid, useMag, useStore } from '../store'
+import { alleOffertes, type Offerte } from '../slack'
 import { euro, fmtDate, fmtDateTime, slug, standaardAfVoor } from '../utils'
 import { TaskTable } from './Taken'
 
@@ -26,7 +27,7 @@ export function takenVanContact(s: ReturnType<typeof useStore>['s'], contact: Co
   return s.tasks.filter((t) => t.contactId === contact.id || (client && t.clientId === client.id))
 }
 
-export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; weergave?: 'pipeline' | 'contacten' }) {
+export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; weergave?: 'pipeline' | 'contacten' | 'offertes' }) {
   const { s, d } = useStore()
   const kan = useMag()
   const [drag, setDrag] = useState<string | null>(null)
@@ -65,14 +66,37 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
     else setOpenId(c.id)
   }
 
+  /** Opdracht naar een klantdossier slepen: akkoord op de offerte, en de opdracht hoort bij die klant. Los op het blok = nieuwe klant. */
+  const naarDossier = (key: string, client?: Client) => {
+    const [soort, cid, did] = key.split(':')
+    const c = s.contacts.find((x) => x.id === cid)
+    if (!c) return
+    const deal = soort === 'd' ? (c.deals ?? []).find((x) => x.id === did) : undefined
+    const doel = client ? s.contacts.find((x) => x.id === client.contactId) : c
+    if (!doel) return
+    if (deal && doel.id !== c.id) {
+      d({ type: 'contact:patch', id: c.id, patch: { deals: (c.deals ?? []).filter((x) => x.id !== did) } })
+      d({ type: 'contact:patch', id: doel.id, patch: { stage: 'klant', deals: [...(doel.deals ?? []), { ...deal, stage: 'klant' }] } })
+    } else {
+      d({ type: 'contact:patch', id: c.id, patch: { stage: 'klant', ...(deal ? { deals: (c.deals ?? []).map((x) => (x.id === did ? { ...x, stage: 'klant' as Stage } : x)) } : {}) } })
+    }
+    const bestaand = client ?? s.clients.find((x) => x.contactId === doel.id)
+    if (bestaand) return go(`klanten/${bestaand.id}`)
+    const id = s.clients.some((x) => x.id === slug(doel.company)) || !slug(doel.company) ? uid() : slug(doel.company)
+    d({ type: 'client:upsert', client: { id, name: doel.company, subdomain: id, contactId: doel.id, pakket: 'Nog invullen', start: new Date().toISOString().slice(0, 10), phase: 0, doneSteps: [], frameUrl: '' } })
+    go(`klanten/${id}`)
+  }
+
   return (
     <>
-      <PageHead title="CRM" sub="Elke kaart is een deal: het project of de video die we verkopen. Sleep naar de volgende fase.">
-        <Segmented value={weergave} onChange={(v) => go(v === 'contacten' ? 'crm/contacten' : 'crm')} options={[{ value: 'pipeline', label: 'Pipeline' }, { value: 'contacten', label: 'Alle contacten' }]} />
-        {kan('crm_bewerken') && <button className="btn primary" onClick={() => { if (weergave !== 'pipeline') go('crm'); setNieuwIn('lead') }}><Icon name="plus" size={16} /> Deal</button>}
+      <PageHead title="CRM" sub="Elke kaart is een opdracht, met de klant erbij. Sleep naar de volgende fase, of naar een klantdossier onderaan.">
+        <Segmented value={weergave} onChange={(v) => go(v === 'pipeline' ? 'crm' : `crm/${v}`)} options={[{ value: 'pipeline', label: 'Pipeline' }, { value: 'contacten', label: 'Alle contacten' }, ...(kan('geld') ? [{ value: 'offertes' as const, label: 'Offertes' }] : [])]} />
+        {kan('crm_bewerken') && <button className="btn primary" onClick={() => { if (weergave !== 'pipeline') go('crm'); setNieuwIn('lead') }}><Icon name="plus" size={16} /> Opdracht</button>}
       </PageHead>
 
-      {weergave === 'contacten' ? (
+      {weergave === 'offertes' ? (
+        <OffertesLijst onOpen={(contactNaam) => { const c = s.contacts.find((x) => x.company.trim().toLowerCase() === contactNaam.trim().toLowerCase()); if (c) openKaart(c) }} />
+      ) : weergave === 'contacten' ? (
         <AlleContacten onOpen={openKaart} />
       ) : (
         <div className="board pipeline">
@@ -89,7 +113,7 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
                   <span className="count">{col.length}</span>
                 </div>
                 {kan('geld') && <div className="muted small col-total">{euro(total)} aan opdrachten</div>}
-                {col.length === 0 && st.key === 'extra' && <p className="muted small" style={{ margin: '4px 4px 8px' }}>Sleep hier klanten die extra opvolging nodig hebben.</p>}
+                {col.length === 0 && st.key === 'klant' && <p className="muted small" style={{ margin: '4px 4px 8px' }}>Opdrachten waar de klant akkoord op gaf.</p>}
                 {col.length === 0 && st.key === 'koud' && <p className="muted small" style={{ margin: '4px 4px 8px' }}>Nog geen koude prospects.</p>}
                 {col.map((it) => <DealKaart key={it.key} it={it} onDrag={setDrag} onOpen={() => openKaart(it.contact)} />)}
                 {kan('crm_bewerken') && (nieuwIn === st.key ? (
@@ -102,8 +126,102 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
         </div>
       )}
 
+      {weergave === 'pipeline' && <KlantDossiers drag={drag} onDrop={naarDossier} go={go} />}
+
       {open && <ContactDrawer contact={open} onClose={() => setOpenId(null)} go={go} />}
     </>
+  )
+}
+
+const OFFERTE_STATUS: Record<string, { label: string; kleur: string; bg: string }> = {
+  draft: { label: 'Concept', kleur: '#6F6E69', bg: '#EDEDEB' },
+  open: { label: 'Verstuurd', kleur: '#2B6E99', bg: '#DCEBF5' },
+  late: { label: 'Verlopen', kleur: '#B85F0B', bg: '#FAE3CC' },
+  accepted: { label: 'Akkoord', kleur: '#3B7354', bg: '#DCEBDF' },
+  billed: { label: 'Gefactureerd', kleur: '#3B7354', bg: '#DCEBDF' },
+  rejected: { label: 'Afgewezen', kleur: '#B33E39', bg: '#F8DCDA' },
+  archived: { label: 'Gearchiveerd', kleur: '#6F6E69', bg: '#EDEDEB' },
+}
+
+/** Alle offertes uit Moneybird, met filter op status. */
+function OffertesLijst({ onOpen }: { onOpen: (klant: string) => void }) {
+  const [data, setData] = useState<Offerte[] | { fout: string } | null>(null)
+  const [filter, setFilter] = useState<'alles' | 'lopend' | 'akkoord' | 'afgewezen'>('lopend')
+  const [zoek, setZoek] = useState('')
+  useEffect(() => { alleOffertes().then((r) => setData('fout' in r ? r : r.offertes ?? [])) }, [])
+  if (!data) return <div className="card"><p className="muted">Offertes ophalen uit Moneybird…</p></div>
+  if ('fout' in data) return <div className="card"><p className="muted">Moneybird gaf een fout: {data.fout}</p></div>
+  const past = (o: Offerte) => filter === 'alles' || (filter === 'lopend' ? ['draft', 'open', 'late'].includes(o.status) : filter === 'akkoord' ? ['accepted', 'billed'].includes(o.status) : o.status === 'rejected')
+  const lijst = data.filter(past).filter((o) => !zoek || `${o.klant} ${o.omschrijving} ${o.nummer}`.toLowerCase().includes(zoek.toLowerCase()))
+  const totaal = lijst.reduce((a, o) => a + o.bedrag, 0)
+  return (
+    <>
+      <div className="card filter-balk">
+        {(['lopend', 'akkoord', 'afgewezen', 'alles'] as const).map((f) => <button key={f} className={`chip ${filter === f ? 'on' : ''}`} onClick={() => setFilter(f)}>{f === 'lopend' ? 'Lopend' : f === 'akkoord' ? 'Akkoord' : f === 'afgewezen' ? 'Afgewezen' : 'Alles'}</button>)}
+        <input className="inline-input" placeholder="Zoek op klant of omschrijving" value={zoek} onChange={(e) => setZoek(e.target.value)} style={{ maxWidth: 260 }} />
+        <span className="filter-rechts muted small">{lijst.length} offertes · {euro(totaal)} excl. btw</span>
+      </div>
+      <div className="card flush">
+        <table className="table">
+          <thead><tr><th>Klant</th><th>Omschrijving</th><th>Nummer</th><th>Datum</th><th>Status</th><th style={{ textAlign: 'right' }}>Bedrag</th><th /></tr></thead>
+          <tbody>
+            {lijst.map((o) => {
+              const st = OFFERTE_STATUS[o.status] ?? { label: o.status, kleur: '#6F6E69', bg: '#EDEDEB' }
+              return (
+                <tr key={o.id}>
+                  <td><button className="link" onClick={() => onOpen(o.klant)}>{o.klant || '—'}</button></td>
+                  <td>{o.omschrijving || '—'}</td>
+                  <td className="muted">{o.nummer ?? 'concept'}</td>
+                  <td className="muted">{o.datum ? fmtDate(o.datum) : '—'}</td>
+                  <td><span className="fase-pil" style={{ color: st.kleur, background: st.bg }}><i style={{ background: st.kleur }} />{st.label}</span></td>
+                  <td style={{ textAlign: 'right' }}>{euro(o.bedrag)}</td>
+                  <td><a className="icon-btn" href={o.url} target="_blank" rel="noreferrer" aria-label="Openen in Moneybird"><Icon name="external" size={14} /></a></td>
+                </tr>
+              )
+            })}
+            {lijst.length === 0 && <tr><td colSpan={7} className="muted">Geen offertes in deze selectie.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
+/** Alle klantdossiers als blokken onder de pipeline. Sleep een opdracht op een klant (of op het blok voor een nieuwe klant). */
+function KlantDossiers({ drag, onDrop, go }: { drag: string | null; onDrop: (key: string, client?: Client) => void; go: (r: string) => void }) {
+  const { s } = useStore()
+  const kan = useMag()
+  const [boven, setBoven] = useState<string | null>(null)
+  if (!kan('klanten')) return null
+  return (
+    <section className={`card crm-dossiers ${drag ? 'droppable' : ''} ${boven === 'blok' ? 'boven' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); if (boven !== 'blok' && !(e.target as HTMLElement).closest('.klant-vakje')) setBoven('blok') }}
+      onDragLeave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setBoven(null) }}
+      onDrop={(e) => { e.preventDefault(); setBoven(null); if (drag && !(e.target as HTMLElement).closest('.klant-vakje')) onDrop(drag) }}>
+      <div className="section-row" style={{ marginTop: 0 }}>
+        <h3 className="section-title">Klantdossiers <span className="muted small">({s.clients.length})</span></h3>
+        <span className="muted small">{drag ? 'Laat los op een klant, of hier voor een nieuwe klant' : 'Sleep een opdracht hierheen als de klant akkoord is'}</span>
+      </div>
+      <div className="klant-vakjes">
+        {s.clients.map((c) => {
+          const merk = s.contacts.find((x) => x.id === c.contactId)
+          const lopend = s.projects.filter((p) => p.soort === 'productie' && p.clientId === c.id && p.fase !== 'live').length
+          return (
+            <button key={c.id} className={`klant-vakje ${boven === c.id ? 'boven' : ''}`} onClick={() => go(`klanten/${c.id}`)}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(c.id) }}
+              onDragLeave={() => setBoven(null)}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(null); if (drag) onDrop(drag, c) }}>
+              <MerkLogo merk={merk} naam={c.name} size={36} />
+              <span className="klant-vakje-tekst">
+                <strong>{c.name}</strong>
+                <span className="muted small">{faseVan(c).label}{lopend ? ` · ${lopend} ${lopend === 1 ? 'project' : 'projecten'}` : ''}</span>
+              </span>
+            </button>
+          )
+        })}
+        {s.clients.length === 0 && <p className="muted small">Nog geen klanten. Sleep een opdracht hierheen zodra de klant akkoord is.</p>}
+      </div>
+    </section>
   )
 }
 
@@ -254,6 +372,12 @@ export function Contactpersonen({ contact }: { contact: Contact }) {
     <div className="personen">
       {contact.name && (
         <div className="persoon hoofd">
+          {kan('crm_bewerken') && <button className="icon-btn persoon-weg" aria-label={`${contact.name} verwijderen`} onClick={() => {
+            const oud = { name: contact.name, role: contact.role, email: contact.email, phone: contact.phone, personen: contact.personen }
+            const [volgende, ...rest] = lijst
+            d({ type: 'contact:patch', id: contact.id, patch: volgende ? { name: volgende.naam, role: volgende.rol ?? '', email: volgende.email ?? '', phone: volgende.telefoon ?? '', personen: rest } : { name: '', role: '', email: '', phone: '' } })
+            metOngedaan(`${contact.name} verwijderd`, () => d({ type: 'contact:patch', id: contact.id, patch: oud }))
+          }}><Icon name="trash" size={13} /></button>}
           <strong>{contact.name}</strong>{contact.role && <span className="muted small"> · {contact.role}</span>}
           <div className="small">{contact.email && <a href={`mailto:${contact.email}`}>{contact.email}</a>}{contact.email && contact.phone && ' · '}{contact.phone && <a href={`tel:${contact.phone}`}>{contact.phone}</a>}</div>
         </div>
@@ -263,7 +387,7 @@ export function Contactpersonen({ contact }: { contact: Contact }) {
           <div className="persoon-rij">
             <input className="inline-input" placeholder="Naam" value={p.naam} onChange={(e) => wijzig(p.id, { naam: e.target.value })} />
             <input className="inline-input" placeholder="Rol" value={p.rol ?? ''} onChange={(e) => wijzig(p.id, { rol: e.target.value || undefined })} />
-            {kan('verwijderen') && <button className="icon-btn" aria-label={`${p.naam} verwijderen`} onClick={() => window.confirm(`${p.naam || 'Deze contactpersoon'} verwijderen?`) && zet(lijst.filter((x) => x.id !== p.id))}><Icon name="trash" size={13} /></button>}
+            <button className="icon-btn" aria-label={`${p.naam} verwijderen`} onClick={() => { zet(lijst.filter((x) => x.id !== p.id)); metOngedaan(`${p.naam || 'Contactpersoon'} verwijderd`, () => zet(lijst)) }}><Icon name="trash" size={13} /></button>
           </div>
           <div className="persoon-rij">
             <input className="inline-input" type="email" placeholder="naam@bedrijf.nl" value={p.email ?? ''} onChange={(e) => wijzig(p.id, { email: e.target.value.trim() || undefined })} />
