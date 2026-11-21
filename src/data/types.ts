@@ -129,6 +129,8 @@ export interface Deal {
   createdAt: string
   /** Bijv. "Bedrijfsfilm", uit de sjablonen. */
   dienst?: string
+  /** Project in het klantdossier dat bij akkoord voor deze opdracht is gemaakt. */
+  projectId?: string
 }
 
 export interface Contactpersoon {
