@@ -114,3 +114,16 @@ export const bronVan = (url: string) => {
 
 /** Pakketnaam zonder bedragen (voor wie geen geld mag zien en voor het portaal). */
 export const pakketNaam = (p: string) => p.replace(/\s*\(.*?€.*?\)/g, '').replace(/\s*[·,-]?\s*€.*$/, '').trim()
+
+/** Wanneer je voor het laatst met een klant bezig was (dossier geopend), per browser. Voor "recent bovenaan". */
+const BEZIG_KEY = 'rise-klant-bezig'
+export function bezigMet(clientId: string) {
+  try {
+    const m = JSON.parse(localStorage.getItem(BEZIG_KEY) || '{}') as Record<string, string>
+    m[clientId] = new Date().toISOString()
+    localStorage.setItem(BEZIG_KEY, JSON.stringify(m))
+  } catch { /* geen opslag */ }
+}
+export function laatstBezig(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(BEZIG_KEY) || '{}') } catch { return {} }
+}

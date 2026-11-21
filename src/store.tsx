@@ -111,13 +111,74 @@ function syncProducties(s: State, clientIds: (string | undefined)[]): State {
 const replace = <T extends { id: string }>(list: T[], obj: T, prepend = false) =>
   list.some((x) => x.id === obj.id) ? list.map((x) => (x.id === obj.id ? obj : x)) : prepend ? [obj, ...list] : [...list, obj]
 
+/** Traject van een productie als één taak met de stappen als deeltaken: zo komen ze in Taken en in de Rise-agenda. */
+export const trajectTaakId = (projectId: string) => `traject-${projectId}`
+const hash = (x: string) => { let h = 0; for (const c of x) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36) }
+
+function trajectTaak(p: Project, oud: Task | undefined, me: PersonId): Task | undefined {
+  if (p.soort !== 'productie' || !p.phases?.length) return undefined
+  const done = new Set(p.doneSteps ?? [])
+  const gezien = new Map<string, number>()
+  const deadline = /^\d{4}-\d{2}-\d{2}$/.test(p.deadline ?? '') ? p.deadline! : ''
+  const andereDeadline = (oud?.deadline ?? '') !== deadline
+  const subs: Subtask[] = p.phases.flatMap((f) => f.steps).filter((t) => t.trim()).map((title) => {
+    const n = (gezien.get(title) ?? 0) + 1
+    gezien.set(title, n)
+    const id = `st-${hash(title)}${n > 1 ? `-${n}` : ''}`
+    const was = oud?.subtasks?.find((x) => x.id === id)
+    const af = done.has(title)
+    return { ...was, id, title, done: af, doneAt: af ? was?.doneAt ?? nu() : undefined, doneBy: af ? was?.doneBy ?? me : undefined, deadline: af ? was?.deadline : andereDeadline ? undefined : was?.deadline }
+  })
+  const subtasks = verdeelDeadlines(subs, deadline)
+  const alles = subtasks.length > 0 && subtasks.every((x) => x.done)
+  const iets = subtasks.some((x) => x.done)
+  const status = p.fase === 'live' || alles ? 'klaar' : iets ? (oud?.status === 'todo' || oud?.status === 'klaar' || !oud ? 'bezig' : oud.status) : oud?.status === 'klaar' ? 'todo' : oud?.status ?? 'todo'
+  const nieuw: Task = {
+    comments: [], inAgenda: true, priority: p.priority ?? 'middel', ...oud,
+    id: trajectTaakId(p.id), auto: `traject:${p.id}`, title: p.name, soort: 'Klantwerk', projectId: p.id, clientId: p.clientId, inTodo: true,
+    assignee: oud?.assignee ?? p.wie?.[0] ?? me, deadline, subtasks, subtasksConfirmed: true, status,
+  }
+  if (oud && JSON.stringify({ ...oud, updatedAt: undefined }) === JSON.stringify({ ...nieuw, updatedAt: undefined })) return oud
+  return { ...nieuw, updatedAt: nu() }
+}
+
+function syncTrajecten(s: State, ids?: string[]): State {
+  let tasks = s.tasks
+  for (const p of s.projects) {
+    if (ids && !ids.includes(p.id)) continue
+    const oud = tasks.find((t) => t.id === trajectTaakId(p.id))
+    const nieuw = trajectTaak(p, oud, s.me)
+    if (nieuw === oud) continue
+    tasks = !nieuw ? tasks.filter((t) => t.id !== trajectTaakId(p.id)) : oud ? tasks.map((t) => (t.id === nieuw.id ? nieuw : t)) : [nieuw, ...tasks]
+  }
+  // Project weg: trajecttaak ook weg
+  if (ids) for (const id of ids) if (!s.projects.some((p) => p.id === id)) tasks = tasks.filter((t) => t.id !== trajectTaakId(id))
+  return tasks === s.tasks ? s : { ...s, tasks }
+}
+
 function reducer(s: State, a: Action): State {
-  const n = reducerBasis(s, a)
+  let n = reducerBasis(s, a)
+  if (a.type === 'load') return syncTrajecten(n)
+  // Deeltaak van een trajecttaak afgevinkt: stap in het traject ook af
+  if (a.type === 'task:upsert' && a.task.auto?.startsWith('traject:')) {
+    const pid = a.task.auto.slice(8)
+    const p = n.projects.find((x) => x.id === pid)
+    if (p?.phases) {
+      const titels = new Set((a.task.subtasks ?? []).map((x) => x.title))
+      const doneSteps = [...(p.doneSteps ?? []).filter((x) => !titels.has(x)), ...(a.task.subtasks ?? []).filter((x) => x.done).map((x) => x.title)]
+      if (JSON.stringify([...doneSteps].sort()) !== JSON.stringify([...(p.doneSteps ?? [])].sort())) {
+        n = { ...n, projects: n.projects.map((x) => (x.id === pid ? { ...x, doneSteps } : x)) }
+        return syncProducties(n, [p.clientId])
+      }
+    }
+    return n
+  }
   // Producties van klanten: portaal-samenvatting bijwerken
   if (a.type === 'project:upsert' || a.type === 'project:update' || a.type === 'project:update:weg' || (a.type === 'weg' && a.table === 'projects')) {
     const oud = s.projects.find((p) => p.id === ('project' in a ? a.project.id : a.id))
     const nw = n.projects.find((p) => p.id === ('project' in a ? a.project.id : a.id))
-    return syncProducties(n, [oud?.clientId, nw?.clientId])
+    const pid = 'project' in a ? a.project.id : a.id
+    return syncTrajecten(syncProducties(n, [oud?.clientId, nw?.clientId]), [pid])
   }
   return n
 }
