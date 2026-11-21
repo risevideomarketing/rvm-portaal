@@ -1834,3 +1834,13 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 [data-theme="dark"] .traject-tab.on { background: #e7ebf1; color: #0b1220; border-color: #e7ebf1; }
 [data-theme="dark"] .traject-tab.on .muted { color: #44506a; }
 @media (max-width: 760px) { .traject-tab { min-width: 0; flex: 1 1 100%; } }
+
+.dossier-projecten { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.dossier-project { display: grid; gap: 6px; text-align: left; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.6); cursor: pointer; font: inherit; color: inherit; }
+.dossier-project:hover { border-color: var(--navy); }
+.dossier-project strong { font-weight: 600; }
+.dossier-project.klaar { opacity: .65; }
+.dossier-project .mini-bar { display: block; height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.dossier-project .mini-bar i { display: block; height: 100%; background: var(--navy); }
+[data-theme="dark"] .dossier-project { background: #1a2331; }
+[data-theme="dark"] .dossier-project .mini-bar i { background: #e7ebf1; }
