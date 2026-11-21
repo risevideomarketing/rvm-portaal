@@ -155,7 +155,7 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
               <input placeholder="Deeltaak toevoegen" value={newSub} onChange={(e) => setNewSub(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSub()} />
             </div>
             {(cur.subtasks ?? []).some((st) => !st.done) && draft.deadline && (
-              <p className="muted small sub-hint">Elke stap staat met zijn eigen datum in de Rise-agenda. <button className="link small" onClick={herverdeel}>Opnieuw verdelen tot de deadline</button></p>
+              <p className="muted small sub-hint">Elke stap krijgt een eigen blok werktijd in de Rise-agenda. <button className="link small" onClick={herverdeel}>Opnieuw verdelen tot de deadline</button></p>
             )}
           </>
         ) : sugg.length > 0 ? (
@@ -265,8 +265,8 @@ export function TaskDrawer({ task, onClose }: { task: Task | null; onClose: () =
 
       <label className="check-row">
         <input type="checkbox" checked={draft.inAgenda} onChange={(e) => set('inAgenda', e.target.checked)} />
-        <Icon name="calendar" size={16} /> Deadline in de Rise-agenda zetten
-        <span className="muted small">(gedeelde Google Agenda, de avond ervoor om 18:00)</span>
+        <Icon name="calendar" size={16} /> In de Rise-agenda inplannen
+        <span className="muted small">(werktijd 3-5 werkdagen vóór de deadline in een vrij gat, plus de deadline zelf; elk blok minstens 2 uur)</span>
       </label>
 
       <label className="block-label">
