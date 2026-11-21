@@ -41,6 +41,11 @@ const TOOLS = [
     description: 'Zet Moneybird-facturen (geen concepten) als pdf in het dossier van elke klant. Slaat al aanwezige over. Werkt in porties: herhaal tot resterend 0 is.',
     inputSchema: { type: 'object', properties: { klant: { type: 'string', description: 'Optioneel: alleen deze klant-id' }, max: { type: 'number', description: 'Max pdfs per aanroep (standaard 12, max 40)' }, proef: { type: 'boolean', description: 'true = alleen tonen welke facturen erbij horen, niets opslaan' } } },
   },
+  {
+    name: 'moneybird_contacten',
+    description: 'Alle contacten uit Moneybird met gegevens en hoeveel facturen (geen concepten) ze hebben gehad: aantal, totaal excl. btw, eerste en laatste factuurdatum. Alleen lezen.',
+    inputSchema: { type: 'object', properties: { alleenMetFacturen: { type: 'boolean', description: 'Standaard true' } } },
+  },
   { name: 'koppelingen', description: 'Test of Moneybird, Slack, Google Agenda, mail en de database echt werken, met de foutmelding als iets niet werkt.', inputSchema: { type: 'object', properties: {} } },
   { name: 'overzicht', description: 'Snel overzicht: open taken per persoon, deadlines deze week, deals per fase, klanten.', inputSchema: { type: 'object', properties: {} } },
 ]
@@ -50,6 +55,27 @@ const enc = encodeURIComponent
 
 async function voerUit(naam: string, a: Record<string, any>): Promise<unknown> {
   if (naam === 'koppelingen') return koppelingen()
+  if (naam === 'moneybird_contacten') {
+    const { mb } = await import('../lib/moneybird.mts')
+    type C = { id: string; company_name?: string; firstname?: string; lastname?: string; email?: string; phone?: string; address1?: string; zipcode?: string; city?: string; customer_id?: string; contact_people?: { firstname?: string; lastname?: string; email?: string; phone?: string }[] }
+    type F = { contact_id: string; state: string; invoice_date: string | null; total_price_excl_tax: string }
+    const contacten: C[] = []
+    for (let page = 1; page <= 20; page++) { const rows = await mb<C[]>(`contacts.json?per_page=100&page=${page}`); contacten.push(...rows); if (rows.length < 100) break }
+    const facturen: F[] = []
+    for (let page = 1; page <= 30; page++) { const rows = await mb<F[]>(`sales_invoices.json?filter=${encodeURIComponent('period:all,state:open|pending_payment|reminded|late|paid|uncollectible')}&per_page=100&page=${page}`); facturen.push(...rows); if (rows.length < 100) break }
+    const per = new Map<string, { aantal: number; totaal: number; eerste: string; laatste: string }>()
+    for (const f of facturen) {
+      if (f.state === 'draft') continue
+      const x = per.get(f.contact_id) ?? { aantal: 0, totaal: 0, eerste: '9999', laatste: '' }
+      x.aantal++; x.totaal += Number(f.total_price_excl_tax) || 0
+      if (f.invoice_date && f.invoice_date < x.eerste) x.eerste = f.invoice_date
+      if (f.invoice_date && f.invoice_date > x.laatste) x.laatste = f.invoice_date
+      per.set(f.contact_id, x)
+    }
+    return contacten
+      .map((c) => ({ id: c.id, bedrijf: c.company_name || [c.firstname, c.lastname].filter(Boolean).join(' '), naam: [c.firstname, c.lastname].filter(Boolean).join(' '), email: c.email ?? '', telefoon: c.phone ?? '', adres: [c.address1, c.zipcode, c.city].filter(Boolean).join(', '), personen: (c.contact_people ?? []).map((p) => ({ naam: [p.firstname, p.lastname].filter(Boolean).join(' '), email: p.email ?? '', telefoon: p.phone ?? '' })), facturen: per.get(c.id) ?? { aantal: 0, totaal: 0, eerste: '', laatste: '' } }))
+      .filter((c) => a.alleenMetFacturen === false || c.facturen.aantal > 0)
+  }
   if (naam === 'facturen_naar_dossiers') return facturenNaarDossiers({ klant: a.klant, max: a.max, proef: a.proef })
   if (naam === 'bestand_importeren') {
     const url = String(a.url ?? '')
