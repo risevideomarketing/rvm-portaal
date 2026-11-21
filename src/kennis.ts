@@ -26,11 +26,11 @@ export function useArtikelen(): Article[] {
 }
 
 /** Link naar een afbeelding uit de kennisbank: lokaal uit public/img, live een tijdelijke link uit de opslag. */
-export function useKennisAfbeelding(pad: string): string {
-  const lokaalPad = pad.startsWith('/') ? pad : `/img/${pad}`
+export function useKennisAfbeelding(pad?: string): string {
+  const lokaalPad = !pad ? '' : pad.startsWith('/') ? pad : `/img/${pad}`
   const [url, setUrl] = useState(supabase ? '' : lokaalPad)
   useEffect(() => {
-    if (!supabase) return
+    if (!supabase || !pad) return
     supabase.storage.from('bestanden').createSignedUrl(pad.replace(/^\/?img\//, ''), 3600).then(({ data }) => setUrl(data?.signedUrl ?? ''))
   }, [pad])
   return url

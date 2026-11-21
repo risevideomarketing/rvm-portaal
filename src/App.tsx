@@ -17,6 +17,8 @@ import { Instellingen } from './pages/Instellingen'
 import { Taken } from './pages/Taken'
 import { Planning } from './pages/Planning'
 import { mag, niveauVan, useStore } from './store'
+import { OngedaanMelding } from './components/Ongedaan'
+import { koppelingStatus, type StatusCheck } from './slack'
 
 /** Menu in drie groepen: werkomgeving, klanten en projecten, beheer (zie T.groepen). */
 const NAV: { key: string; icon: string; groep: 0 | 1 }[] = [
@@ -48,6 +50,14 @@ export function App() {
     return () => window.removeEventListener('hashchange', f)
   }, [])
   const go = (r: string) => { window.location.hash = `/${r}` }
+  // Mobiel: lege tabelcellen ("—") verbergen, zodat rijen compact blijven
+  useEffect(() => {
+    const markeer = () => document.querySelectorAll('.table td').forEach((td) => td.classList.toggle('leeg', td.textContent?.trim() === '—'))
+    const o = new MutationObserver(markeer)
+    o.observe(document.body, { childList: true, subtree: true, characterData: true })
+    markeer()
+    return () => o.disconnect()
+  }, [])
   const [section, id, mode, sub] = route.split('/')
   const openCount = s.tasks.filter((t) => opTodo(t) && t.status !== 'klaar' && t.assignee === s.me).length
 
@@ -78,16 +88,15 @@ export function App() {
     ...(mag(s, 'crm') ? [{ key: 'crm', icon: 'crm', label: T.nav.crm }] : []),
   ]
   const actief = (key: string) => section === key || (!section && !key) || (section === 'klanten' && key === 'crm')
-  const huidig = NAV.find((n) => actief(n.key))
-
+  
   return (
     <div className={`shell ${menuOpen ? 'menu-open' : ''}`}>
       <header className="mobiel-balk">
-        <a className="brand" href="#/"><img src="/img/logo-wit.png" alt="Rise Video Marketing" /></a>
-        <span className="mobiel-titel">{huidig ? T.nav[huidig.key] : section === 'instellingen' ? (s.lang === 'en' ? 'Settings' : 'Instellingen') : section === 'portaal' ? T.portaal : ''}</span>
         <button className="mobiel-menuknop" onClick={() => setMenuOpen(!menuOpen)} aria-label={menuOpen ? 'Menu sluiten' : 'Menu openen'} aria-expanded={menuOpen}>
-          <Icon name={menuOpen ? 'x' : 'list'} size={22} />
+          <Icon name={menuOpen ? 'x' : 'list'} size={28} />
         </button>
+        <a className="brand" href="#/"><img src="/img/logo-wit.png" alt="Rise" /></a>
+        <span aria-hidden="true" />
       </header>
       <div className="menu-achtergrond" onClick={() => setMenuOpen(false)} />
       <aside className="sidebar">
@@ -149,15 +158,10 @@ export function App() {
         </div>
       </aside>
       <main className="main">
-        <div className={`proto-banner ${s.live ? 'live' : ''}`}>
-          {s.live
-            ? s.ready
-              ? s.lang === 'en' ? 'Live · tasks are shared and Slack notifications are on' : 'Live · taken worden gedeeld en Slack-meldingen staan aan'
-              : s.lang === 'en' ? 'Loading…' : 'Gegevens laden…'
-            : T.protoBanner}
-        </div>
+        {s.live ? <StatusBalk ready={s.ready} /> : <div className="proto-banner">{T.protoBanner}</div>}
         <div className="content">{page}</div>
       </main>
+      <OngedaanMelding />
       <nav className="tabbalk" aria-label="Snelmenu">
         {tabs.map((t) => (
           <a key={t.key} href={`#/${t.key}`} className={actief(t.key) && !menuOpen ? 'active' : ''}>
@@ -181,6 +185,32 @@ function GeenToegang() {
       <div className="leeg-icoon"><Icon name="lock" size={20} /></div>
       <strong>Deze pagina staat niet voor je open</strong>
       <p className="muted small">Vraag Daan om toegang via Instellingen.</p>
+    </div>
+  )
+}
+
+/** Statusbalk: test elke 5 minuten of alle koppelingen echt werken (database, Slack, Moneybird, agenda, mail, Meta). */
+function StatusBalk({ ready }: { ready: boolean }) {
+  const [checks, setChecks] = useState<StatusCheck[] | null>(null)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    let weg = false
+    const laad = () => koppelingStatus().then((r) => { if (!weg && r && 'checks' in r) setChecks(r.checks) }).catch(() => {})
+    laad()
+    const i = setInterval(laad, 5 * 60_000)
+    return () => { weg = true; clearInterval(i) }
+  }, [])
+  const kapot = checks?.filter((c) => !c.ok) ?? []
+  const klasse = !ready || !checks ? '' : kapot.length ? 'waarschuwing' : 'live'
+  const tekst = !ready ? 'Gegevens laden…' : !checks ? 'Koppelingen controleren…' : kapot.length ? `Niet gekoppeld: ${kapot.map((c) => c.naam).join(', ')}` : 'Live · alles gekoppeld en werkend'
+  return (
+    <div className={`proto-banner status-balk ${klasse}`}>
+      <button onClick={() => setOpen(!open)} aria-expanded={open}>{tekst}</button>
+      {open && checks && (
+        <ul className="status-lijst">
+          {checks.map((c) => <li key={c.naam}><span className={c.ok ? 'status-stip ok' : 'status-stip'} />{c.naam}<span className="muted">{c.uitleg}</span></li>)}
+        </ul>
+      )}
     </div>
   )
 }

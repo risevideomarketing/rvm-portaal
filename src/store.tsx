@@ -125,7 +125,7 @@ function reducer(s: State, a: Action): State {
 function reducerBasis(s: State, a: Action): State {
   switch (a.type) {
     case 'load':
-      return { ...s, ready: true, tasks: a.tasks, contacts: a.contacts, clients: a.clients, projects: a.projects }
+      return { ...s, ready: true, tasks: a.tasks.map((t) => (t.soort === 'Systemen' ? { ...t, soort: 'Business improvement' } : t)), contacts: a.contacts, clients: a.clients, projects: a.projects }
     case 'remote':
       return { ...s, [a.table]: replace(s[a.table] as { id: string }[], a.obj, a.table === 'tasks') }
     case 'me':

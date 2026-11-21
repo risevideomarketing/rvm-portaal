@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { Client, PersonId } from './data/types'
 import { PortaalView } from './pages/Portaal'
-import { klantContent, klantTaakAf, klantVraag } from './slack'
+import { klantContent, klantTaakAf, klantVraag, klantAanleveren } from './slack'
 import { StoreProvider } from './store'
 import { linkFoutUitUrl, supabase } from './supabase'
 
@@ -91,6 +91,11 @@ function KlantPortaal({ clientId, email }: { clientId: string; email: string }) 
           const r = await klantVraag(tekst)
           if (!r.ok) return r.fout ?? 'Versturen lukte niet'
           setClient({ ...client, hulpvragen: r.hulpvragen })
+        }}
+        onToevoegen={async (a) => {
+          const r = await klantAanleveren(a)
+          if (!r.ok || !r.data) return r.fout ?? 'Dat lukte niet'
+          setClient({ ...client, links: r.data.links as Client['links'], bestanden: r.data.bestanden as Client['bestanden'], planning: r.data.planning as Client['planning'] })
         }}
       />
     </div>

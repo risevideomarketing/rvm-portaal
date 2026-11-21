@@ -264,3 +264,43 @@ export const analytics = (periode: '7d' | '30d', clientId?: string) => haal<Anal
 export interface Afspraak { id: string; titel: string; start: string; eind: string; heleDag: boolean; agenda: string; plek?: string; link?: string }
 /** Google Agenda: vandaag en de komende 6 dagen (team). */
 export const mijnAgenda = () => haal<{ gekoppeld: boolean; afspraken: Afspraak[]; fout?: string }>('mijn-agenda')
+
+export interface StatusCheck { naam: string; ok: boolean; uitleg: string }
+export const koppelingStatus = () => haal<{ checks: StatusCheck[] }>('status')
+
+export type Aanlevering = { soort: 'link'; titel: string; url: string } | { soort: 'datum'; titel: string; datum: string } | { soort: 'bestand'; titel: string; bestand: File }
+/** Klant levert iets aan (link, bestand of datum). Bestanden gaan direct naar de opslag via een tijdelijke upload-URL. */
+export async function klantAanleveren(a: Aanlevering): Promise<{ ok: boolean; data?: { links: unknown[]; bestanden: unknown[]; planning: unknown[] }; fout?: string }> {
+  try {
+    let body: Record<string, unknown> = a
+    if (a.soort === 'bestand') {
+      if (a.bestand.size > 50 * 1024 * 1024) return { ok: false, fout: 'Maximaal 50 MB. Grotere bestanden (video) liever als link, bijv. WeTransfer of Drive.' }
+      const plek = await api('klant-aanleveren', { method: 'POST', body: JSON.stringify({ soort: 'uploadplek', naam: a.bestand.name }) })
+      if (!plek?.ok) return { ok: false, fout: plek ? await plek.text() : 'Niet ingelogd' }
+      const { pad, url } = (await plek.json()) as { pad: string; url: string }
+      const up = await fetch(url, { method: 'PUT', headers: { 'Content-Type': a.bestand.type || 'application/octet-stream' }, body: a.bestand })
+      if (!up.ok) return { ok: false, fout: `Uploaden lukte niet (${up.status})` }
+      body = { soort: 'bestand', titel: a.titel, pad, naam: a.bestand.name, type: a.bestand.type, grootte: a.bestand.size }
+    }
+    const res = await api('klant-aanleveren', { method: 'POST', body: JSON.stringify(body) })
+    if (!res) return { ok: false, fout: 'Niet ingelogd' }
+    if (!res.ok) return { ok: false, fout: await res.text() }
+    return { ok: true, data: await res.json() }
+  } catch (e) {
+    return { ok: false, fout: (e as Error).message }
+  }
+}
+
+export interface KlantOfferte { nummer: string; datum: string | null; geldigTot: string | null; bedrag: number; omschrijving: string; status: 'open' | 'akkoord' | 'afgewezen' | 'verlopen'; url?: string }
+/** Offertes van een klant uit Moneybird. null = lokaal of niet ingelogd. */
+export async function klantOffertes(klant: string): Promise<{ offertes: KlantOfferte[] } | { fout: string } | null> {
+  try {
+    const res = await api(`klant-facturen?soort=offertes&klant=${encodeURIComponent(klant)}`)
+    if (!res) return null
+    if (!res.ok) return { fout: await res.text() }
+    const j = (await res.json()) as { offertes?: KlantOfferte[] }
+    return { offertes: j.offertes ?? [] }
+  } catch (e) {
+    return { fout: (e as Error).message }
+  }
+}
