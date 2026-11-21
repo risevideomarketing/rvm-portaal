@@ -42,8 +42,11 @@ export interface TaskRow {
   description?: string
   projectId?: string
   inTodo?: boolean
-  subtasks?: { id: string; title: string; done: boolean; deadline?: string }[]
+  subtasks?: { id: string; title: string; done: boolean; deadline?: string; uren?: number }[]
   subtasksConfirmed?: boolean
+  priority?: string
+  /** Geschatte uren werk (anders schat het dashboard zelf op basis van de titel). */
+  uren?: number
 }
 
 export interface ContactRow {
