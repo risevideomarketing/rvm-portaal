@@ -364,6 +364,11 @@ export interface Project {
   createdAt: string
   /** Updates, nieuwste eerst: wat is er gedaan, door wie, wanneer. */
   updates: ProjectUpdate[]
+  /** Eigen traject van dit project (fasen en stappen); zonder: het sjabloon van de dienst of het standaardtraject. */
+  phases?: Phase[]
+  doneSteps?: string[]
+  /** Huidige fase in het traject (index). */
+  phase?: number
 }
 
 export interface ProjectUpdate {
