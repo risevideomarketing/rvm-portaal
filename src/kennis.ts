@@ -19,10 +19,35 @@ function laad(): Promise<Article[]> {
   return bezig ?? Promise.resolve([])
 }
 
+const luisteraars = new Set<(l: Article[]) => void>()
+const zet = (l: Article[]) => { cache = l; luisteraars.forEach((f) => f(l)) }
+
 export function useArtikelen(): Article[] {
   const [lijst, setLijst] = useState<Article[]>(cache ?? [])
-  useEffect(() => { let stop = false; laad().then((l) => !stop && setLijst(l)); return () => { stop = true } }, [])
+  useEffect(() => {
+    let stop = false
+    laad().then((l) => !stop && setLijst(l))
+    luisteraars.add(setLijst)
+    return () => { stop = true; luisteraars.delete(setLijst) }
+  }, [])
   return lijst
+}
+
+/** Artikel opslaan (nieuw of bijgewerkt). Lokaal alleen in deze sessie. */
+export async function bewaarArtikel(a: Article): Promise<string | void> {
+  const nieuw = [...(cache ?? []).filter((x) => x.id !== a.id), a].sort((x, y) => (x.id < y.id ? -1 : 1))
+  zet(nieuw)
+  if (!supabase) return
+  const { error } = await supabase.from('kennisbank').upsert({ id: a.id, data: a, updated_at: new Date().toISOString() })
+  if (error) return error.message
+}
+
+/** Artikel verwijderen. */
+export async function verwijderArtikel(id: string): Promise<string | void> {
+  zet((cache ?? []).filter((x) => x.id !== id))
+  if (!supabase) return
+  const { error } = await supabase.from('kennisbank').delete().eq('id', id)
+  if (error) return error.message
 }
 
 /** Link naar een afbeelding uit de kennisbank: lokaal uit public/img, live een tijdelijke link uit de opslag. */
