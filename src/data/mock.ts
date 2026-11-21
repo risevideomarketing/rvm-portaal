@@ -1,6 +1,6 @@
 // Vaste gegevens van het dashboard: team, fases, CRM-stappen en de kennisbank.
 // Klanten, contacten en taken komen uit Supabase (live) of uit src/data/lokaal.json (lokaal, niet in git).
-import type { Article, Client, Contact, Invoice, Melding, Person, Phase, Recht, Task, Project, Opdracht } from './types'
+import type { Article, Client, Contact, Deal, Invoice, Melding, Person, Phase, Recht, Stage, Task, Project, Opdracht } from './types'
 
 /** Het team. Live wordt deze lijst bijgewerkt uit Supabase (allowed_users), inclusief nieuwe mensen en hun rechten. */
 export const TEAM: Person[] = [
@@ -29,6 +29,14 @@ export const RECHTEN: { key: Recht; groep: string; label: string; uitleg?: strin
   { key: 'statistieken', groep: 'Geld en cijfers', label: 'Statistieken (Moneybird, GA4, Meta)', standaard: false },
   { key: 'projecten', groep: 'Overig', label: 'Projecten van Rise (SEO, Outreach…)', standaard: true },
 ]
+
+/** Videotraject met eigen voorbereiding en montage; de rest is gelijk aan het standaardtraject. */
+const videoTraject = (opnameLabel: string, pre: string[], montage: string[]): Phase[] =>
+  PHASES.map((f) =>
+    f.key === 'preproductie' ? { ...f, steps: pre }
+    : f.key === 'opnames' ? { ...f, klantLabel: opnameLabel }
+    : f.key === 'montage' ? { ...f, steps: montage }
+    : f)
 
 /** Sjablonen om in één klik een set rechten te zetten (daarna nog per vinkje aan te passen). */
 export const RECHTEN_SJABLONEN: { naam: string; uitleg: string; rechten: Recht[] }[] = [
@@ -59,7 +67,31 @@ export const PHASES: Phase[] = [
 
 /** Sjablonen om het traject van een klant mee te beginnen; daarna is alles per klant aan te passen. */
 export const TRAJECTEN: { naam: string; fasen: Phase[] }[] = [
-  { naam: 'Videoproductie', fasen: PHASES },
+  { naam: 'Videoproductie (standaard)', fasen: PHASES },
+  { naam: 'Bedrijfsfilm / brandmovie', fasen: videoTraject('We maken je bedrijfsfilm', ['Concept en verhaallijn klaar', 'Script en interviewvragen klaar', 'Draaiboek en shotlist klaar', 'Draaidag, locatie en mensen bevestigd'], ['Selectie gemaakt', 'Muziek gekozen', 'Eerste versie in Frame.io']) },
+  { naam: 'Aftermovie / eventvideo', fasen: videoTraject('We filmen je event', ['Programma en sprekers ontvangen', 'Shotlist en must-haves klaar', 'Toegang en parkeren geregeld'], ['Beste momenten geselecteerd', 'Muziek gekozen', 'Eerste versie in Frame.io']) },
+  { naam: 'Commercial / reclamevideo', fasen: videoTraject('We draaien je commercial', ['Creatief concept akkoord', 'Script en storyboard klaar', 'Cast, locatie en props geregeld'], ['Selectie gemaakt', 'Grading en sound design', 'Eerste versie in Frame.io']) },
+  { naam: 'Social video\'s / ad content', fasen: videoTraject('We maken je social video\'s', ['Hooks en scripts klaar', 'Formats bepaald (9:16, 4:5, 1:1)', 'Draaidag bevestigd'], ['Varianten gemonteerd', 'Ondertitels toegevoegd', 'Eerste versies in Frame.io']) },
+  { naam: 'Productvideo', fasen: videoTraject('We filmen je product', ['Producten ontvangen', 'Shotlist en stijl klaar', 'Studio of locatie bevestigd'], ['Selectie gemaakt', 'Eerste versie in Frame.io']) },
+  { naam: 'Testimonial video', fasen: videoTraject('We filmen je klantverhalen', ['Klanten benaderd en akkoord', 'Interviewvragen klaar', 'Draaidag en locatie bevestigd'], ['Antwoorden per vraag geselecteerd', 'Eerste versie in Frame.io']) },
+  { naam: 'Recruitmentvideo', fasen: videoTraject('We filmen je werkgeversverhaal', ['Vacature en doelgroep helder', 'Medewerkers voor beeld gekozen', 'Interviewvragen en draaiboek klaar'], ['Selectie gemaakt', 'Eerste versie in Frame.io']) },
+  { naam: 'Drone-opnames', fasen: videoTraject('We vliegen voor je', ['Locatie en luchtruim gecheckt', 'Toestemming terreineigenaar', 'Vliegdag gepland (weer gecheckt)'], ['Beste shots geselecteerd', 'Eerste versie in Frame.io']) },
+  { naam: 'Livestream', fasen: [
+    { key: 'kennismaking', label: 'Kennismaking & briefing', klantLabel: 'We leren je kennen', steps: ['Intake gehad (programma, platform, kijkers)', 'Portaal-login aangemaakt'] },
+    { key: 'voorstel', label: 'Voorstel & akkoord', klantLabel: 'Je voorstel staat klaar', steps: ['Offerte verstuurd', 'Akkoord ontvangen', 'Aanbetaling 35% gefactureerd'] },
+    { key: 'voorbereiding', label: 'Voorbereiding', klantLabel: 'We bereiden de stream voor', steps: ['Internet op locatie getest', 'Streamlink en platform ingericht', 'Draaiboek en regie klaar', 'Generale repetitie'] },
+    { key: 'live', label: 'Live', klantLabel: 'We gaan live', steps: ['Stream gedraaid', 'Opname veiliggesteld'] },
+    { key: 'oplevering', label: 'Oplevering', klantLabel: 'Je opname staat klaar', steps: ['Terugkijkversie opgeleverd', 'Eindfactuur 65% verstuurd'] },
+  ] },
+  { naam: 'Podcast', fasen: videoTraject('We nemen je podcast op', ['Format en gasten bepaald', 'Studio of locatie bevestigd', 'Vragen per aflevering klaar'], ['Afleveringen gemonteerd', 'Shorts gemaakt', 'Eerste versies in Frame.io']) },
+  { naam: 'Alleen montage', fasen: [
+    { key: 'kennismaking', label: 'Kennismaking & briefing', klantLabel: 'We leren je kennen', steps: ['Briefing gehad (doel, lengte, formats, stijl)', 'Portaal-login aangemaakt'] },
+    { key: 'voorstel', label: 'Voorstel & akkoord', klantLabel: 'Je voorstel staat klaar', steps: ['Offerte verstuurd', 'Akkoord ontvangen'] },
+    { key: 'materiaal', label: 'Materiaal ontvangen', klantLabel: 'We ontvangen je beeldmateriaal', steps: ['Beeldmateriaal ontvangen', 'Huisstijl, logo en muziekwensen ontvangen', 'Materiaal gecheckt en veiliggesteld'] },
+    { key: 'montage', label: 'Montage', klantLabel: 'Je video wordt gemonteerd', steps: ['Spot-timeline gemaakt', 'Eerste versie in Frame.io'] },
+    { key: 'feedback', label: 'Feedback & afronding', klantLabel: 'We verwerken je feedback', steps: ['Feedback verwerkt', 'Ondertiteling en kleur gecheckt', 'Definitief akkoord'] },
+    { key: 'oplevering', label: 'Oplevering', klantLabel: 'Je video is klaar', steps: ['Alle formaten opgeleverd', 'Factuur verstuurd'] },
+  ] },
   {
     naam: 'Strippenkaart / vaste opdrachtgever',
     fasen: [
@@ -76,6 +108,15 @@ export const TRAJECTEN: { naam: string; fasen: Phase[] }[] = [
       { key: 'plan', label: 'Strategie & contentplanning', klantLabel: 'We maken het plan', steps: ['Doelen en doelgroep vastgelegd', 'Contentkalender eerste maand klaar'] },
       { key: 'content', label: 'Content maken', klantLabel: 'Je content wordt gemaakt', steps: ['Eerste posts en video\'s klaar', 'Akkoord klant'] },
       { key: 'doorlopend', label: 'Doorlopend & rapportage', klantLabel: 'We posten en houden je op de hoogte', steps: ['Posts volgens planning', 'Maandoverzicht verstuurd', 'Maandgesprek gehad'] },
+    ],
+  },
+  {
+    naam: 'Advertentiebeheer / online campagne',
+    fasen: [
+      { key: 'kennismaking', label: 'Kennismaking & toegang', klantLabel: 'We leren je kennen', steps: ['Kick-off gehad (doel, budget, doelgroep)', 'Toegang Meta Business Manager', 'Pixel en conversies gecheckt', 'Portaal-login aangemaakt'] },
+      { key: 'plan', label: 'Strategie & creatives', klantLabel: 'We maken het plan', steps: ['Campagnestructuur vastgelegd', 'Ad creatives klaar', 'Akkoord klant'] },
+      { key: 'live', label: 'Campagnes live', klantLabel: 'Je campagnes lopen', steps: ['Campagnes live', 'Eerste week geoptimaliseerd'] },
+      { key: 'doorlopend', label: 'Optimalisatie & rapportage', klantLabel: 'We optimaliseren en rapporteren', steps: ['Nieuwe creatives getest', 'Maandrapportage verstuurd', 'Maandgesprek gehad'] },
     ],
   },
   {
@@ -159,7 +200,7 @@ export const PROJECTS: Project[] = lokaal?.projects ?? STARTPROJECTEN
 /** Kennisbank: staat in Supabase (tabel kennisbank), lokaal in lokaal.json. Zo staat er geen interne kennis in de code. */
 export const ARTICLES_LOKAAL: Article[] = lokaal?.kennisbank ?? []
 
-export const SOORTEN = ['Sales', 'Directe omzet', 'Klantwerk', 'Business improvement', 'Geld besparen', 'Systemen', 'Privé'] as const
+export const SOORTEN = ['Sales', 'Directe omzet', 'Klantwerk', 'Business improvement', 'Geld besparen', 'Privé'] as const
 
 /** Documenten per klant: offertes, voorstellen, contracten. Straks uit Supabase Storage of Drive. */
 export const DOCUMENTS: { id: string; clientId: string; title: string; meta: string; soort: string }[] = []
@@ -183,3 +224,15 @@ export const STANDAARD_SPELREGELS = [
   'Per video spreken we duidelijk af wat het gewenste oplevermateriaal is.',
   'We factureren 1x per kwartaal op de aangegeven data, zolang dit in verhouding staat met het strippenkaartgebruik. Worden er in één kwartaal veel video\'s afgenomen, dan factureren we dat kwartaal meer, nooit boven de offerte uit.',
 ]
+
+/** Kaarten in de pipeline: elke deal apart; een contact zonder deals (of een klant zonder lopende klant-deal) als eigen kaart. */
+export interface PipelineItem { key: string; contact: Contact; deal?: Deal; stage: Stage; value: number; titel: string }
+export function pipelineItems(contacts: Contact[]): PipelineItem[] {
+  return contacts.flatMap((c) => {
+    const deals = c.deals ?? []
+    const items: PipelineItem[] = deals.map((d) => ({ key: `d:${c.id}:${d.id}`, contact: c, deal: d, stage: d.stage, value: d.value, titel: d.titel || c.company }))
+    const eigen = deals.length === 0 || (isKlant(c.stage) && !deals.some((d) => isKlant(d.stage)))
+    if (eigen) items.push({ key: `c:${c.id}`, contact: c, stage: c.stage, value: deals.length ? 0 : c.value, titel: c.company })
+    return items
+  })
+}

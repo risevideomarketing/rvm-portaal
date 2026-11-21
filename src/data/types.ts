@@ -76,6 +76,8 @@ export interface Task {
   updatedAt?: string
   /** Gezet als het systeem de taak zelf heeft aangemaakt, bijv. 'reminder:<mail-id>'. Voorkomt dubbele reminders. */
   auto?: string
+  /** Aangeleverd door de klant via het portaal (link, bestand of datum). */
+  doorKlant?: boolean
 }
 
 /** 'extra' = klant die extra aandacht nodig heeft. 'afgehandeld' staat niet meer in de pipeline, alleen nog bij Alle contacten. */
@@ -113,6 +115,20 @@ export interface Contact {
   opvolgen?: string
   /** Extra contactpersonen bij dit bedrijf (de eerste staat in name/email/phone). */
   personen?: Contactpersoon[]
+  /** Deals: wat we verkopen (een project, video of campagne). Een bestaande klant kan meerdere deals hebben. */
+  deals?: Deal[]
+}
+
+/** Een deal in de pipeline: een specifiek project of een video voor dit bedrijf. */
+export interface Deal {
+  id: string
+  titel: string
+  stage: Stage
+  value: number
+  owner?: PersonId
+  createdAt: string
+  /** Bijv. "Bedrijfsfilm", uit de sjablonen. */
+  dienst?: string
 }
 
 export interface Contactpersoon {
@@ -412,6 +428,13 @@ export interface Article {
   images?: { src: string; alt: string }[]
   /** Ook tonen in de kennisbank van het klantportaal. */
   klant?: boolean
+  /** Inhoud precies zoals in Notion (Notion-markdown met kolommen, toggles, callouts, tabbladen). */
+  notion?: string
+  /** Waar het in Notion stond, bijv. "Rise | Intern" of "Rise | Resources". */
+  groep?: string
+  /** Notion-afbeeldingen (bestandsnaam) → pad in de opslag. */
+  afbeeldingen?: Record<string, string>
+  icoon?: string
 }
 
 export interface MonthStat {
