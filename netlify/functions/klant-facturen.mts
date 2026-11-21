@@ -40,7 +40,17 @@ export default async (req: Request) => {
       contactId = kandidaat?.id
       contactNaam = kandidaat?.company_name
     }
-    if (!contactId) return Response.json({ gekoppeld: true, contact: null, facturen: [] })
+    if (!contactId) return Response.json({ gekoppeld: true, contact: null, facturen: [], offertes: [] })
+
+    // Offertes (?soort=offertes): alles behalve concepten en gearchiveerde
+    if (new URL(req.url).searchParams.get('soort') === 'offertes') {
+      const rows = await mb<{ estimate_id: string | null; estimate_date: string | null; due_date: string | null; total_price_excl_tax: string; state: string; url?: string; contact_id: string; reference?: string }[]>(`estimates.json?filter=${encodeURIComponent(`contact_id:${contactId},state:open|late|accepted|rejected|billed`)}&per_page=100`)
+      const offertes = rows
+        .filter((o) => o.contact_id === contactId && o.estimate_id && o.state !== 'draft')
+        .map((o) => ({ nummer: o.estimate_id, datum: o.estimate_date, geldigTot: o.due_date, bedrag: Number(o.total_price_excl_tax), omschrijving: o.reference ?? '', status: o.state === 'accepted' || o.state === 'billed' ? 'akkoord' : o.state === 'rejected' ? 'afgewezen' : o.state === 'late' ? 'verlopen' : 'open', url: o.url }))
+        .sort((a, b) => (b.datum ?? '').localeCompare(a.datum ?? ''))
+      return Response.json({ gekoppeld: true, offertes })
+    }
 
     const alle: Factuur[] = []
     for (let page = 1; page <= 10; page++) {

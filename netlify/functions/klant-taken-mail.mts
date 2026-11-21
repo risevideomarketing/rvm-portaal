@@ -37,7 +37,7 @@ export default async () => {
 
       const een = nieuw.length === 1
       const lijst = nieuw
-        .map((t) => `<div style="background:#F7F6F2;border-radius:14px;padding:16px 18px;margin:0 0 10px">
+        .map((t) => `<div style="background:#F3F3F3;border-radius:16px;padding:16px 18px;margin:0 0 10px">
           <p style="font-size:15px;font-weight:600;margin:0;color:#0C1625">${html(t.title)}</p>
           ${t.description ? `<p style="font-size:14px;line-height:1.5;margin:6px 0 0;color:#3B4656">${html(t.description)}</p>` : ''}
           ${t.deadline ? `<p style="font-size:13px;margin:6px 0 0;color:#667185">Graag vóór ${datumNL(t.deadline)}</p>` : ''}

@@ -60,10 +60,10 @@ export default async (req: Request) => {
         html: riseMail({
           aanhef: vn ? `Beste ${html(vn)},` : 'Beste,',
           titel: `Welkom in je portaal voor ${html(bedrijf)}`,
-          intro: 'Vanaf nu hoef je nergens meer naar te zoeken of na te vragen. In je persoonlijke portaal zie je in één oogopslag waar we mee bezig zijn en vind je alles wat we voor je maken. Jij hoeft niets te doen: wij houden het voor je bij.',
+          intro: 'We hebben iets nieuws voor je: je eigen Rise-app. Al je projecten, content, video\'s en belangrijke informatie staan daar overzichtelijk op één plek. Altijd bij de hand, op je laptop én je telefoon.',
           blokHtml: `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 6px;border-collapse:collapse">${punten}</table>
-            <div style="background:#F7F6F2;border-radius:14px;padding:18px 20px;margin:22px 0 0">
-              <p style="font-size:14px;line-height:1.6;margin:0;color:#3B4656"><strong style="color:#0C1625">Zo log je in</strong><br>Ga naar app.risevideomarketing.nl en vul ${html(email)} in. Je krijgt dan meteen een inlogcode in je mail. Geen wachtwoord nodig, en je blijft daarna ingelogd.</p>
+            <div style="background:#F3F3F3;border-radius:16px;padding:18px 22px;margin:22px 0 0">
+              <p style="font-size:14px;line-height:1.6;margin:0;color:#3B4656"><strong style="color:#0C1625">Zo log je in</strong><br>Ga naar app.risevideomarketing.nl en vul ${html(email)} in. Je krijgt dan meteen een inlogcode in je mail. Geen wachtwoord nodig, en je blijft daarna ingelogd. Tip: zet de app op je beginscherm via Delen → Zet op beginscherm.</p>
             </div>`,
           knop: 'Open je portaal',
           url: 'https://app.risevideomarketing.nl',
@@ -72,7 +72,7 @@ export default async (req: Request) => {
         tekst: [
           vn ? `Beste ${vn},` : 'Beste,',
           '',
-          `Je persoonlijke portaal voor ${bedrijf} staat klaar. Je ziet daar waar we aan werken, je video's, de planning${client.data.strippenkaart ? ', je strippenkaart' : ''} en je bestanden en facturen. Jij hoeft niets te doen: wij houden het voor je bij.`,
+          `We hebben iets nieuws voor je: je eigen Rise-app voor ${bedrijf}. Je ziet daar waar we aan werken, je video's, de planning${client.data.strippenkaart ? ', je strippenkaart' : ''} en je bestanden en facturen. Jij hoeft niets te doen: wij houden het voor je bij.`,
           '',
           `Inloggen: ga naar https://app.risevideomarketing.nl en vul ${email} in. Je krijgt meteen een inlogcode in je mail.`,
           '',
