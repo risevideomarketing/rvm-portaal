@@ -1876,16 +1876,11 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 .dossier-tab.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(12, 22, 37, 0.08); }
 .dossier-tab.boven, .projecten-drop.boven { outline: 2px dashed var(--accent, #2f6fed); outline-offset: 2px; }
 .projecten-drop { border-radius: 12px; min-height: 40px; }
-.offertes-uitleg { margin: 0 0 14px; max-width: 760px; }
-.offerte-kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: start; }
-.offerte-kaart { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; cursor: grab; }
+.offerte-kaart { cursor: pointer; }
 .offerte-kaart:active { cursor: grabbing; }
-.offerte-kop { display: flex; align-items: center; gap: 8px; }
-.offerte-titel { flex: 1; font-weight: 600; font-size: 15px; }
-.offerte-velden { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.offerte-bedrag { width: 120px; }
-.offerte-kaart textarea { width: 100%; resize: vertical; }
-.offerte-nieuw { min-height: 64px; }
-.offertes-onder { margin-top: 22px; }
+.offerte-kaart .mini-bar i { background: var(--navy); }
+.offerte-nieuw { display: flex; align-items: center; justify-content: center; gap: 6px; border-style: dashed; color: var(--muted); min-height: 96px; }
+.offerte-notitie { width: 100%; resize: vertical; }
+.dossier-tab:focus { outline: none; }
+.dossier-tab:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
 html.dark .dossier-tab.on, [data-theme="dark"] .dossier-tab.on { background: rgba(255, 255, 255, 0.12); color: #fff; }
-html.dark .offerte-kaart, [data-theme="dark"] .offerte-kaart { background: rgba(255, 255, 255, 0.04); }
