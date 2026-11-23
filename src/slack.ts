@@ -31,9 +31,9 @@ async function api(path: string, init: RequestInit = {}): Promise<Response | nul
 }
 
 /** Gewijzigde taken naar de Rise-agenda (Google Agenda). Fouten alleen in de console: de taak zelf is al opgeslagen. */
-export async function agendaSync(ids: string[], weg: string[] = []) {
+export async function agendaSync(ids: string[], weg: string[] = [], projecten: string[] = []) {
   try {
-    const res = await api('agenda', { method: 'POST', body: JSON.stringify({ ids, weg }) })
+    const res = await api('agenda', { method: 'POST', body: JSON.stringify({ ids, weg, projecten }) })
     if (res && !res.ok) console.error('Agenda bijwerken mislukt', res.status, await res.text())
   } catch (e) {
     console.error('Agenda bijwerken mislukt', e)

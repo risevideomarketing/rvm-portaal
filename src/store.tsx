@@ -339,6 +339,7 @@ export function StoreProvider({ children, live = false, me = 'daan', userId }: {
         supabase.from(t).delete().in('id', weg).then(({ error }) => {
           if (error) return console.error(`Verwijderen uit ${t} mislukt`, error)
           if (t === 'tasks') agendaSync([], weg)
+          if (t === 'projects') agendaSync([], [], weg)
         })
       }
       if (changed.length) {
@@ -348,6 +349,7 @@ export function StoreProvider({ children, live = false, me = 'daan', userId }: {
           .then(({ error }) => {
             if (error) return console.error(`Opslaan in ${t} mislukt`, error)
             if (t === 'tasks') naarAgenda(changed.map((x) => x.id))
+            if (t === 'projects') agendaSync([], [], changed.map((x) => x.id))
           })
       }
     }
