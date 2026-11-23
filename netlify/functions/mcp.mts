@@ -46,6 +46,8 @@ const TOOLS = [
     description: 'Alle contacten uit Moneybird met gegevens en hoeveel facturen (geen concepten) ze hebben gehad: aantal, totaal excl. btw, eerste en laatste factuurdatum. Alleen lezen.',
     inputSchema: { type: 'object', properties: { alleenMetFacturen: { type: 'boolean', description: 'Standaard true' } } },
   },
+  { name: 'opdrachten_scannen', description: 'Zoek nu nieuwe opdrachten op TenderNed, Freelancer.nl en Hoofdkraan en zet ze in Opdrachten (gebeurt ook elke ochtend vanzelf).', inputSchema: { type: 'object', properties: {} } },
+  { name: 'agenda_herstellen', description: 'Haalt alle afspraken die het dashboard voor taken in de Rise-agenda zette weg, en zet de opleverdata van alle lopende video-projecten er als hele dag in.', inputSchema: { type: 'object', properties: {} } },
   { name: 'koppelingen', description: 'Test of Moneybird, Slack, Google Agenda, mail en de database echt werken, met de foutmelding als iets niet werkt.', inputSchema: { type: 'object', properties: {} } },
   { name: 'overzicht', description: 'Snel overzicht: open taken per persoon, deadlines deze week, deals per fase, klanten.', inputSchema: { type: 'object', properties: {} } },
 ]
@@ -55,6 +57,16 @@ const enc = encodeURIComponent
 
 async function voerUit(naam: string, a: Record<string, any>): Promise<unknown> {
   if (naam === 'koppelingen') return koppelingen()
+  if (naam === 'agenda_herstellen') {
+    const { taakAfsprakenOpruimen, syncProject } = await import('../lib/agenda.mts')
+    const weg = await taakAfsprakenOpruimen()
+    const projecten = await sb<{ id: string; data: any }[]>('projects?select=id,data')
+    const klanten = new Map((await sb<{ id: string; data: { name: string } }[]>('clients?select=id,data')).map((c) => [c.id, c.data.name]))
+    const gezet: string[] = []
+    for (const p of projecten) if ((await syncProject({ ...p.data, id: p.id }, klanten.get(p.data.clientId))) === 'gezet') gezet.push(`${p.data.name} (${p.data.deadline})`)
+    return { verwijderd: weg, opleveringen: gezet }
+  }
+  if (naam === 'opdrachten_scannen') { const { scanOpdrachten } = await import('../lib/opdrachten.mts'); return scanOpdrachten() }
   if (naam === 'moneybird_contacten') {
     const { mb } = await import('../lib/moneybird.mts')
     type C = { id: string; company_name?: string; firstname?: string; lastname?: string; email?: string; phone?: string; address1?: string; zipcode?: string; city?: string; customer_id?: string; contact_people?: { firstname?: string; lastname?: string; email?: string; phone?: string }[] }

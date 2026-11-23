@@ -3,9 +3,9 @@
 // - gestart en 24 werkuren geen update → DM aan de eigenaar
 // - contact met "Opvolgen op" vandaag → DM aan de eigenaar van het contact (geen taak nodig)
 // Elke melding gaat maar één keer (tabel sent_notifications).
-// Daarna: alle deadlines opnieuw naar de Rise-agenda (Google Agenda).
-import { agendaGekoppeld, syncTaak } from '../lib/agenda.mts'
-import { SITE, claim, contactRows, dateNL, dm, names, taskLink, tasks, team, werkurenSinds } from '../lib/rise.mts'
+// Daarna: opleverdata van video's opnieuw naar de Rise-agenda (hele dag).
+import { agendaGekoppeld, syncProject, type ProjectRow } from '../lib/agenda.mts'
+import { SITE, claim, contactRows, dateNL, dm, names, sb, taskLink, tasks, team, werkurenSinds } from '../lib/rise.mts'
 
 export default async () => {
   const [all, emails, clients, contacts] = await Promise.all([tasks(), team(), names('clients'), names('contacts')])
@@ -48,11 +48,13 @@ export default async () => {
   // Alle deadlines nog een keer naar de Rise-agenda, voor wijzigingen die buiten het dashboard om gingen
   let agenda = 0
   if (agendaGekoppeld()) {
-    for (const t of all) {
+    // Alleen opleverdata van video's (hele dag); taken komen niet in de agenda
+    const projecten = await sb<{ id: string; data: ProjectRow }[]>('projects?select=id,data')
+    for (const { id, data } of projecten) {
       try {
-        if ((await syncTaak(t, clients.get(t.clientId ?? '') || contacts.get(t.contactId ?? ''))) !== 'niets') agenda++
+        if ((await syncProject({ ...data, id }, clients.get(data.clientId ?? ''))) !== 'niets') agenda++
       } catch (e) {
-        errors.push(`agenda ${t.id}: ${(e as Error).message}`)
+        errors.push(`agenda ${id}: ${(e as Error).message}`)
       }
     }
   }
