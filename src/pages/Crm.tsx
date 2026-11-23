@@ -9,6 +9,7 @@ import { uid, useMag, useStore } from '../store'
 import { alleOffertes, type Offerte } from '../slack'
 import { bezigMet, euro, fmtDate, fmtDateTime, laatstBezig, slug, standaardAfVoor } from '../utils'
 import { TaskTable } from './Taken'
+import { openLink, uploaden } from '../bestanden'
 
 /** Opvolgdatum, met jaartal (de meeste liggen maanden vooruit). */
 const opvolgDatum = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -682,18 +683,18 @@ export function OffertesTab({ client, onNaarProject }: { client: Client; onNaarP
               <strong>{x.titel || 'Naamloze offerte'}</strong>
               <span className="muted small">{st?.label ?? x.stage}{kan('geld') && x.value ? ` · ${euro(x.value)}` : ''}</span>
               <span className="mini-bar"><i style={{ width: `${((i + 1) / stappen.length) * 100}%` }} /></span>
-              <span className="muted small">{[`sinds ${fmtDate(x.createdAt)}`, x.notitie?.trim() ? 'notities' : null].filter(Boolean).join(' · ')}</span>
+              <span className="muted small">{[`sinds ${fmtDate(x.createdAt)}`, (client.offertePdfs ?? []).some((b) => b.dealId === x.id) ? 'pdf bij de klant' : null, x.notitie?.trim() ? 'notities' : null].filter(Boolean).join(' · ')}</span>
             </button>
           )
         })}
         {kan('crm_bewerken') && <button className="dossier-project offerte-nieuw" onClick={nieuwe}><Icon name="plus" size={14} /> Offerte</button>}
       </div>
-      {deal && contact && <OfferteDrawer contact={contact} deal={deal} onClose={() => setOpen(null)} onNaarProject={(id) => { setOpen(null); onNaarProject(id) }} />}
+      {deal && contact && <OfferteDrawer client={client} contact={contact} deal={deal} onClose={() => setOpen(null)} onNaarProject={(id) => { setOpen(null); onNaarProject(id) }} />}
     </>
   )
 }
 
-function OfferteDrawer({ contact, deal, onClose, onNaarProject }: { contact: Contact; deal: Deal; onClose: () => void; onNaarProject: (dealId: string) => void }) {
+function OfferteDrawer({ client, contact, deal, onClose, onNaarProject }: { client: Client; contact: Contact; deal: Deal; onClose: () => void; onNaarProject: (dealId: string) => void }) {
   const { d } = useStore()
   const kan = useMag()
   const wijzig = (p: Partial<Deal>) => d({ type: 'contact:patch', id: contact.id, patch: { deals: (contact.deals ?? []).map((x) => (x.id === deal.id ? { ...x, ...p } : x)) } })
@@ -719,11 +720,55 @@ function OfferteDrawer({ contact, deal, onClose, onNaarProject }: { contact: Con
           </div>
           <h3 className="section-title" style={{ marginTop: 18 }}>Notities <span className="muted small">(gaan nooit mee naar het project of het portaal)</span></h3>
           <textarea className="offerte-notitie" rows={6} placeholder="Wensen, afspraken, prijsopbouw" value={deal.notitie ?? ''} onChange={(e) => wijzig({ notitie: e.target.value })} />
+          <OffertePdf client={client} deal={deal} />
           <button className="btn primary wide" style={{ marginTop: 14 }} disabled={!deal.titel.trim()} onClick={() => onNaarProject(deal.id)}><Icon name="check" size={16} /> Akkoord: naar lopende projecten</button>
           <button className="link small danger" style={{ marginTop: 14 }} onClick={verwijder}>Offerte verwijderen</button>
         </fieldset>
         <div><ContactGeschiedenis contact={contact} /></div>
       </div>
     </Drawer>
+  )
+}
+
+/** De pdf van een offerte: uploaden, openen, weghalen. De klant ziet hem in het portaal (Offertes & Facturen). */
+function OffertePdf({ client, deal }: { client: Client; deal: Deal }) {
+  const { s, d } = useStore()
+  const kan = useMag()
+  const ref = useRef<HTMLInputElement>(null)
+  const [bezig, setBezig] = useState(false)
+  const [fout, setFout] = useState('')
+  const huidig = s.clients.find((c) => c.id === client.id) ?? client
+  const pdfs = (huidig.offertePdfs ?? []).filter((x) => x.dealId === deal.id)
+  const zet = (lijst: NonNullable<Client['offertePdfs']>) => d({ type: 'client:upsert', client: { ...huidig, offertePdfs: lijst } })
+  const upload = async (f?: File) => {
+    if (!f) return
+    if (!/pdf$/i.test(f.type) && !/\.pdf$/i.test(f.name)) return setFout('Kies een pdf-bestand.')
+    setBezig(true); setFout('')
+    const r = await uploaden(`klant/${client.id}/offertes`, f, s.me)
+    setBezig(false)
+    if (!r.bestand) return setFout(r.fout ?? 'Uploaden lukte niet.')
+    zet([{ ...r.bestand, dealId: deal.id, titel: deal.titel }, ...(huidig.offertePdfs ?? [])])
+  }
+  return (
+    <>
+      <h3 className="section-title" style={{ marginTop: 18 }}>Pdf voor de klant <span className="muted small">(ziet de klant in het portaal onder Offertes & Facturen)</span></h3>
+      <div className="card">
+        {pdfs.length === 0 && <p className="muted small" style={{ margin: '0 0 10px' }}>Nog geen pdf. Upload de offerte, dan kan {client.name} hem in het portaal openen.</p>}
+        {pdfs.map((b) => (
+          <div key={b.id} className="offerte-pdf-rij">
+            <button className="link" onClick={async () => { const u = await openLink(b); if (u) window.open(u, '_blank', 'noopener') }}><Icon name="note" size={14} /> {b.naam}</button>
+            <span className="muted small">{fmtDate(b.at)}</span>
+            {kan('crm_bewerken') && <button className="icon-btn" aria-label="Pdf weghalen" onClick={() => { const oud = huidig.offertePdfs ?? []; zet(oud.filter((x) => x.id !== b.id)); metOngedaan('Pdf weggehaald, de klant ziet hem niet meer', () => zet(oud)) }}><Icon name="x" size={13} /></button>}
+          </div>
+        ))}
+        {kan('crm_bewerken') && (
+          <>
+            <input ref={ref} type="file" accept="application/pdf,.pdf" hidden onChange={(e) => { upload(e.target.files?.[0]); e.target.value = '' }} />
+            <button className="btn small" disabled={bezig} onClick={() => ref.current?.click()}><Icon name="upload" size={14} /> {bezig ? 'Uploaden…' : pdfs.length ? 'Nieuwe versie uploaden' : 'Pdf uploaden'}</button>
+          </>
+        )}
+        {fout && <p className="small danger" style={{ margin: '8px 0 0' }}>{fout}</p>}
+      </div>
+    </>
   )
 }

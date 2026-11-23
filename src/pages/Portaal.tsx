@@ -114,10 +114,21 @@ export function OffertesKaart({ clientId }: { clientId: string }) {
         <ul className="portal-facturen-lijst">
           {staat.offertes.map((o) => (
             <li key={o.nummer}>
-              <span className="factuur-nr"><strong>{o.omschrijving || o.nummer}</strong><span className="muted small">{o.nummer}{o.datum ? ` · ${fmtDate(o.datum)}` : ''}{o.status === 'open' && o.geldigTot ? ` · geldig tot ${fmtDate(o.geldigTot)}` : ''}</span></span>
-              <span className="factuur-bedrag">{euroNL(o.bedrag)} <span className="muted small">excl. btw</span></span>
-              <span className={`badge ${o.status === 'akkoord' ? 'status-klaar' : o.status === 'open' ? 'status-bezig' : ''}`}>{o.status === 'akkoord' ? 'Akkoord' : o.status === 'afgewezen' ? 'Afgewezen' : o.status === 'verlopen' ? 'Verlopen' : 'Open'}</span>
-              {o.url ? <a className="btn small" href={o.url} target="_blank" rel="noreferrer">{o.status === 'open' ? 'Bekijken en akkoord geven' : 'Bekijken'}</a> : <span />}
+              {o.status === 'pdf' ? (
+                <>
+                  <span className="factuur-nr"><strong>{o.omschrijving}</strong><span className="muted small">Offerte (pdf){o.datum ? ` · ${fmtDate(o.datum)}` : ''}</span></span>
+                  <span />
+                  <span />
+                  {o.url ? <a className="btn small" href={o.url} target="_blank" rel="noreferrer">Pdf openen</a> : <span />}
+                </>
+              ) : (
+                <>
+                  <span className="factuur-nr"><strong>{o.omschrijving || o.nummer}</strong><span className="muted small">{o.nummer}{o.datum ? ` · ${fmtDate(o.datum)}` : ''}{o.status === 'open' && o.geldigTot ? ` · geldig tot ${fmtDate(o.geldigTot)}` : ''}</span></span>
+                  <span className="factuur-bedrag">{euroNL(o.bedrag ?? 0)} <span className="muted small">excl. btw</span></span>
+                  <span className={`badge ${o.status === 'akkoord' ? 'status-klaar' : o.status === 'open' ? 'status-bezig' : ''}`}>{o.status === 'akkoord' ? 'Akkoord' : o.status === 'afgewezen' ? 'Afgewezen' : o.status === 'verlopen' ? 'Verlopen' : 'Open'}</span>
+                  {o.url ? <a className="btn small" href={o.url} target="_blank" rel="noreferrer">{o.status === 'open' ? 'Bekijken en akkoord geven' : 'Bekijken'}</a> : <span />}
+                </>
+              )}
             </li>
           ))}
         </ul>
