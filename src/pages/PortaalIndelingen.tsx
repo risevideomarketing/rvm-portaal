@@ -510,7 +510,7 @@ const FASE_NU: Record<ProductieFase, string> = {
   feedback: 'De versie staat klaar, we wachten op jouw feedback',
   live: 'Opgeleverd',
 }
-const STAPPEN = ['Voorbereiding', 'Filmen', 'Montage', 'Laatste hand', 'Opgeleverd']
+const STAPPEN = ['Voorbereiding', 'Filmen', 'Montage', 'Feedback', 'Opgeleverd']
 
 /** Statusbalk per video: vijf stappen, de huidige gemarkeerd, en wat we nu doen. */
 function VideoStatus({ x, vandaag }: { x: { id: string; name: string; fase: ProductieFase; deadline?: string }; vandaag: string }) {

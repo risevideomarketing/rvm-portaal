@@ -529,14 +529,18 @@ function Toegang({ client, update }: { client: Client; update: Update }) {
   const [email, setEmail] = useState('')
   const [naam, setNaam] = useState('')
   const [msg, setMsg] = useState('')
+  const [geld, setGeld] = useState(true)
   const logins = client.logins ?? []
+  const zonder = (client.zonderFacturen ?? []).map((x) => x.toLowerCase())
+  const zetGeld = (e: string, mag: boolean) => update({ zonderFacturen: mag ? zonder.filter((x) => x !== e) : Array.from(new Set([...zonder, e])) })
   const add = async () => {
     const e = email.trim().toLowerCase()
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return setMsg('Dat is geen geldig mailadres.')
     setMsg('Bezig…')
     const res = s.live ? await giveAccess(client.id, e, naam.trim()) : { ok: true, text: 'Lokaal: alleen opgeslagen, er is nog geen account aangemaakt.' }
     if (!res.ok) return setMsg(res.text)
-    update({ logins: Array.from(new Set([...logins, e])) })
+    update({ logins: Array.from(new Set([...logins, e])), zonderFacturen: geld ? zonder.filter((x) => x !== e) : Array.from(new Set([...zonder, e])) })
+    setGeld(true)
     setEmail('')
     setNaam('')
     setMsg(res.text || `${e} kan nu inloggen op app.risevideomarketing.nl met een code uit de mail.`)
@@ -544,14 +548,22 @@ function Toegang({ client, update }: { client: Client; update: Update }) {
   return (
     <div className="card">
       {logins.length === 0 && <p className="muted small" style={{ margin: 0 }}>Nog niemand van de klant heeft toegang.</p>}
-      {logins.map((l) => <div key={l} className="link-row"><Icon name="lock" size={14} /><span className="list-main">{l}</span></div>)}
+      {logins.map((l) => (
+        <div key={l} className="link-row login-rij">
+          <Icon name="lock" size={14} /><span className="list-main">{l}</span>
+          <label className="check-row login-geld" title="Facturen, offertes en bedragen in het portaal">
+            <input type="checkbox" checked={!zonder.includes(l.toLowerCase())} onChange={(e) => zetGeld(l.toLowerCase(), e.target.checked)} /> Facturen & offertes
+          </label>
+        </div>
+      ))}
  <div className="link-add" style={{ gridTemplateColumns: '1fr 1fr auto' }}>
         <input placeholder="Naam (voor de welkomstmail)" value={naam} onChange={(e) => setNaam(e.target.value)} />
         <input type="email" placeholder="Mailadres van de klant" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <button className="btn small" onClick={add} disabled={!email.trim()}>Geef toegang</button>
       </div>
+      <label className="check-row" style={{ marginTop: 8 }}><input type="checkbox" checked={geld} onChange={(e) => setGeld(e.target.checked)} /> Mag facturen, offertes en bedragen zien</label>
       {msg && <p className="muted small">{msg}</p>}
-      <p className="muted small" style={{ marginBottom: 0 }}>De klant krijgt een persoonlijke welkomstmail en logt in op app.risevideomarketing.nl met een code uit de mail en ziet alleen het eigen portaal: voortgang, planning, content, bestanden en de kennisbank. Nooit taken, CRM of bedragen.</p>
+      <p className="muted small" style={{ marginBottom: 0 }}>De klant krijgt een persoonlijke welkomstmail en logt in op app.risevideomarketing.nl met een code uit de mail en ziet alleen het eigen portaal: voortgang, planning, content, bestanden en de kennisbank. Nooit taken, CRM of je notities. Facturen, offertes en bedragen alleen als het vinkje bij die persoon aan staat.</p>
     </div>
   )
 }
@@ -589,6 +601,15 @@ export function trajectVan(p: Project, client: Client | undefined, enige: boolea
   if (enige && client?.phases?.length) return { name: p.name, phases: client.phases, doneSteps: client.doneSteps, phase: client.phase }
   const sjabloon = TRAJECTEN.find((t) => t.naam === dienstVan(p))?.fasen ?? PHASES
   return { name: p.name, phases: sjabloon, doneSteps: p.doneSteps ?? [], phase: p.phase ?? 0 }
+}
+
+/** Voortgang van een productie = afgevinkte stappen van het traject (opgeleverd = 100%). Zelfde bron als het traject, het dossier en het portaal. */
+export function projectVoortgang(p: Project, client: Client | undefined, enige: boolean) {
+  const t = trajectVan(p, client, enige)
+  const f = fasenVan(t)
+  const stappen = f.flatMap((x) => x.steps)
+  const af = p.fase === 'live' ? stappen.length : stappen.filter((x) => t.doneSteps.includes(x)).length
+  return { af, totaal: stappen.length, procent: stappen.length ? Math.round((af / stappen.length) * 100) : p.fase === 'live' ? 100 : 0, fase: faseVan(t).label, faseNr: Math.min(t.phase + 1, f.length), aantalFasen: f.length }
 }
 
 /** Bovenaan het dossier: de projecten van deze klant als compacte kaarten. Het traject, de taken en bestanden staan op de projectpagina. */
@@ -655,7 +676,7 @@ function ProjectTrajecten({ client, go }: { client: Client; go: (r: string) => v
             <button key={p.id} className={`dossier-project ${klaar ? 'klaar' : ''}`} onClick={() => go(`productie/${p.id}`)}>
               <strong>{p.name}</strong>
               <span className="muted small">{klaar ? 'Opgeleverd' : `${faseVan(t).label} · fase ${Math.min(t.phase + 1, f.length)} van ${f.length}`}</span>
-              <span className="mini-bar"><i style={{ width: `${((Math.min(t.phase, f.length - 1) + (klaar ? 1 : 0)) / f.length) * 100}%` }} /></span>
+              <span className="mini-bar"><i style={{ width: `${klaar ? 100 : projectVoortgang(p, client, lijst.length === 1).procent}%` }} /></span>
               <span className="muted small">{[p.deadline ? `af vóór ${fmtDate(p.deadline)}` : null, open ? `${open} open ${open === 1 ? 'taak' : 'taken'}` : 'geen open taken'].filter(Boolean).join(' · ')}</span>
             </button>
           )

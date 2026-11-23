@@ -10,7 +10,7 @@ import type { ContentSoort, Priority, Project, Task } from '../data/types'
 import { uid, useMag, useStore } from '../store'
 import { deadlineLabel, euro, fmtDate, slug, standaardAfVoor, teLaat } from '../utils'
 import { SnelleTaak } from './Taken'
-import { TrajectKaart, bordFase, trajectVan, type TrajectPatch } from './Klanten'
+import { TrajectKaart, bordFase, projectVoortgang, trajectVan, type TrajectPatch } from './Klanten'
 import { PHASES } from '../data/mock'
 
 type Soort = 'productie' | 'intern'
@@ -174,7 +174,7 @@ export function Projecten({ soort, id, go }: { soort: Soort; id?: string; go: (r
       ) : (
         <div className="card flush">
           <table className="table">
-            <thead><tr><th>Project</th>{soort === 'productie' && <th>Klant</th>}<th>Fase</th>{soort === 'productie' && <th>Soort</th>}<th>Taken</th><th>Deadline</th><th>Wie</th></tr></thead>
+            <thead><tr><th>Project</th>{soort === 'productie' && <th>Klant</th>}<th>Fase</th>{soort === 'productie' && <th>Soort</th>}<th>{soort === 'productie' ? 'Voortgang' : 'Taken'}</th><th>Deadline</th><th>Wie</th></tr></thead>
             <tbody>
               {zichtbaar.map((p) => {
                 const v = voortgang(takenVan(p))
@@ -185,7 +185,7 @@ export function Projecten({ soort, id, go }: { soort: Soort; id?: string; go: (r
                     {soort === 'productie' && <td className="muted">{s.clients.find((c) => c.id === p.clientId)?.name ?? '—'}</td>}
                     <td><span className="fase-pil" style={{ color: f.kleur, background: f.bg }}><i style={{ background: f.kleur }} />{f.label}</span></td>
                     {soort === 'productie' && <td className="muted small">{CONTENT_SOORTEN.find((c) => c.key === p.contentSoort)?.label ?? '—'}</td>}
-                    <td className="muted small">{v.totaal ? `${v.klaar}/${v.totaal}` : '—'}</td>
+                    <td className="muted small">{soort === 'productie' ? `${projectVoortgang(p, s.clients.find((c) => c.id === p.clientId), s.projects.filter((x) => x.soort === 'productie' && x.clientId === p.clientId).length === 1).procent}%` : v.totaal ? `${v.klaar}/${v.totaal}` : '—'}</td>
                     <td className={`small ${p.deadline && teLaat(p.deadline) && f.key !== 'live' && f.key !== 'afgerond' ? 'late' : 'muted'}`}>{p.deadline ? deadlineLabel(p.deadline, f.key === 'live' || f.key === 'afgerond') : '—'}</td>
                     <td><span className="avatar-rij">{(p.wie ?? []).map((w) => <Avatar key={w} id={w} size={22} />)}</span></td>
                   </tr>
@@ -221,6 +221,8 @@ function ProjectKaart({ p, taken, onDrag, onOpen }: { p: Project; taken: Task[];
   const klant = s.clients.find((c) => c.id === p.clientId)
   const f = faseVanProject(p)
   const klaarFase = f.key === 'live' || f.key === 'afgerond'
+  // Productie: voortgang uit het traject (stappen), niet uit losse taken
+  const pv = p.soort === 'productie' ? projectVoortgang(p, klant, s.projects.filter((x) => x.soort === 'productie' && x.clientId === p.clientId).length === 1) : null
   return (
     <div className="board-card project-kaart" draggable={kan('projecten')} onDragStart={() => onDrag(p.id)} onDragEnd={() => onDrag(null)} onClick={onOpen}>
       {klant && <div className="muted small">{klant.name}</div>}
@@ -231,10 +233,17 @@ function ProjectKaart({ p, taken, onDrag, onOpen }: { p: Project; taken: Task[];
         {p.contentSoort && <span className="badge">{CONTENT_SOORTEN.find((c) => c.key === p.contentSoort)?.label}</span>}
         {(p.bestanden?.length ?? 0) > 0 && <span className="badge" title="Bestanden"><Icon name="clip" size={11} /> {p.bestanden!.length}</span>}
       </div>
-      <div className="row-progress">
-        <span className="muted small">☑ {v.klaar}/{v.totaal} taken</span>
-        <span className="mini-bar"><i style={{ width: `${v.totaal ? (v.klaar / v.totaal) * 100 : 0}%` }} /></span>
-      </div>
+      {pv ? (
+        <div className="row-progress" title={`${pv.af} van ${pv.totaal} stappen af`}>
+          <span className="muted small">{pv.fase} · {pv.procent}%</span>
+          <span className="mini-bar"><i style={{ width: `${pv.procent}%` }} /></span>
+        </div>
+      ) : (
+        <div className="row-progress">
+          <span className="muted small">☑ {v.klaar}/{v.totaal} taken</span>
+          <span className="mini-bar"><i style={{ width: `${v.totaal ? (v.klaar / v.totaal) * 100 : 0}%` }} /></span>
+        </div>
+      )}
       <div className="board-card-foot">
         {kan('geld') && p.bedrag ? <span className="small strong">{euro(p.bedrag)}</span> : <span className="muted small">—</span>}
         <span className={`small ${p.deadline && !klaarFase && teLaat(p.deadline) ? 'late' : 'muted'}`}>{klaarFase && f.key === 'live' ? 'Live' : p.deadline ? fmtDate(p.deadline) : ''}</span>
