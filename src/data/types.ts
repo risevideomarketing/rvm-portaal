@@ -221,6 +221,8 @@ export interface Client {
   producties?: PortaalProductie[]
   /** Strippenkaart van deze klant (leeg = geen strippenkaart). Ook zichtbaar in het portaal. */
   strippenkaart?: Strippenkaart
+  /** Pdf-offertes die het team uploadde; de klant ziet ze in het portaal onder Offertes & Facturen. */
+  offertePdfs?: (Bestand & { dealId?: string; titel?: string })[]
 }
 
 /** Eén strip op de strippenkaart. done = verzilverd. */
