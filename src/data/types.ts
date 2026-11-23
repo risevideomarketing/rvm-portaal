@@ -131,6 +131,8 @@ export interface Deal {
   dienst?: string
   /** Project in het klantdossier dat bij akkoord voor deze opdracht is gemaakt. */
   projectId?: string
+  /** Notities bij de offerte, alleen voor het team (gaan nooit mee naar het project of het portaal). */
+  notitie?: string
 }
 
 export interface Contactpersoon {
