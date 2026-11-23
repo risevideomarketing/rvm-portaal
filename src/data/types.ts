@@ -223,6 +223,8 @@ export interface Client {
   strippenkaart?: Strippenkaart
   /** Pdf-offertes die het team uploadde; de klant ziet ze in het portaal onder Offertes & Facturen. */
   offertePdfs?: (Bestand & { dealId?: string; titel?: string })[]
+  /** Portaallogins (mailadressen) die GEEN facturen, offertes en bedragen mogen zien. */
+  zonderFacturen?: string[]
 }
 
 /** Eén strip op de strippenkaart. done = verzilverd. */
