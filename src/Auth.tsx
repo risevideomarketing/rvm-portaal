@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { Client, PersonId } from './data/types'
 import { PortaalView } from './pages/Portaal'
+import { KlantWissel } from './components/KlantWissel'
 import { klantContent, klantTaakAf, klantVraag, klantAanleveren } from './slack'
 import { StoreProvider } from './store'
 import { linkFoutUitUrl, supabase } from './supabase'
@@ -80,7 +81,7 @@ function KlantPortaal({ clientId, email }: { clientId: string; email: string }) 
     <div className="portal-standalone">
       <PortaalView
         client={client}
-        actions={<button className="link small portal-logout" onClick={() => supabase!.auth.signOut()}>Uitloggen</button>}
+        actions={<><KlantWissel actief={client.id} /><button className="link small portal-logout" onClick={() => supabase!.auth.signOut()}>Uitloggen</button></>}
         onTaak={async (id, gedaan) => {
           const r = await klantTaakAf(id, gedaan)
           if (!r.ok) return `Dat lukte niet: ${r.fout ?? 'onbekende fout'}`

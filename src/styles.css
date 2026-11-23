@@ -1884,3 +1884,10 @@ fieldset.card.info-list, .card.info-list { padding: 4px 18px; }
 .dossier-tab:focus { outline: none; }
 .dossier-tab:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
 html.dark .dossier-tab.on, [data-theme="dark"] .dossier-tab.on { background: rgba(255, 255, 255, 0.12); color: #fff; }
+
+/* Portaal: wisselen tussen organisaties (één mailadres, meerdere klanten) */
+.portal-wissel { font: inherit; font-size: 13px; padding: 6px 28px 6px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--ink); max-width: 220px; }
+.pi-kop.donker .portal-wissel { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); color: #fff; }
+.pi-kop.donker .portal-wissel option { color: #0C1625; }
+.offerte-pdf-rij { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.offerte-pdf-rij .link { display: inline-flex; gap: 6px; align-items: center; flex: 1; text-align: left; }

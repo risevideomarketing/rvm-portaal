@@ -294,7 +294,7 @@ export async function klantAanleveren(a: Aanlevering): Promise<{ ok: boolean; da
   }
 }
 
-export interface KlantOfferte { nummer: string; datum: string | null; geldigTot: string | null; bedrag: number; omschrijving: string; status: 'open' | 'akkoord' | 'afgewezen' | 'verlopen'; url?: string }
+export interface KlantOfferte { nummer: string; datum: string | null; geldigTot: string | null; bedrag: number | null; omschrijving: string; status: 'open' | 'akkoord' | 'afgewezen' | 'verlopen' | 'pdf'; url?: string }
 /** Offertes van een klant uit Moneybird. null = lokaal of niet ingelogd. */
 export async function klantOffertes(klant: string): Promise<{ offertes: KlantOfferte[] } | { fout: string } | null> {
   try {
@@ -306,4 +306,20 @@ export async function klantOffertes(klant: string): Promise<{ offertes: KlantOff
   } catch (e) {
     return { fout: (e as Error).message }
   }
+}
+
+/** Klanten waar de ingelogde klant toegang toe heeft (één adres kan bij meerdere organisaties horen). */
+export async function mijnKlanten(): Promise<{ actief: string | null; klanten: { id: string; naam: string }[] } | null> {
+  try {
+    const res = await api('klant-wissel')
+    if (!res?.ok) return null
+    return (await res.json()) as { actief: string | null; klanten: { id: string; naam: string }[] }
+  } catch { return null }
+}
+/** Wissel van portaal; daarna de pagina opnieuw laden. */
+export async function wisselKlant(clientId: string): Promise<boolean> {
+  try {
+    const res = await api('klant-wissel', { method: 'POST', body: JSON.stringify({ clientId }) })
+    return Boolean(res?.ok)
+  } catch { return false }
 }
