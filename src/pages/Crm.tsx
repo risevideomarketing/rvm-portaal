@@ -650,64 +650,80 @@ export function offerteNaarProject(st: ReturnType<typeof useStore>, client: Clie
   return id
 }
 
-/** Tab "Offertes" in het klantdossier: alle verkoop voor deze klant. Alleen het team ziet dit, nooit de klant. */
+/** Tab "Offertes" in het klantdossier: dezelfde kaarten als Lopende projecten. Klik = bewerken, slepen naar Lopende projecten = akkoord. Alleen het team. */
 export function OffertesTab({ client, onNaarProject }: { client: Client; onNaarProject: (dealId: string) => void }) {
-  const store = useStore()
-  const { s, d } = store
+  const { s, d } = useStore()
   const kan = useMag()
+  const [open, setOpen] = useState<string | null>(null)
   const contact = s.contacts.find((c) => c.id === client.contactId)
   const offertes = (contact?.deals ?? []).filter((x) => !(x.projectId && s.projects.some((p) => p.id === x.projectId)))
+  const stappen = ['lead', 'gemaild', 'voorstel', 'klant']
   const nieuwe = () => {
     const deal: Deal = { id: uid(), titel: '', stage: 'voorstel', value: 0, owner: s.me, createdAt: new Date().toISOString() }
-    if (contact) return d({ type: 'contact:patch', id: contact.id, patch: { deals: [...(contact.deals ?? []), deal] } })
-    const c: Contact = { id: uid(), name: '', company: client.name, role: '', email: '', phone: '', stage: 'klant', value: 0, owner: s.me, source: '', timeline: [], deals: [deal] }
-    d({ type: 'contact:upsert', contact: c })
-    d({ type: 'client:upsert', client: { ...client, contactId: c.id } })
+    if (contact) d({ type: 'contact:patch', id: contact.id, patch: { deals: [...(contact.deals ?? []), deal] } })
+    else {
+      const c: Contact = { id: uid(), name: '', company: client.name, role: '', email: '', phone: '', stage: 'klant', value: 0, owner: s.me, source: '', timeline: [], deals: [deal] }
+      d({ type: 'contact:upsert', contact: c })
+      d({ type: 'client:upsert', client: { ...client, contactId: c.id } })
+    }
+    setOpen(deal.id)
   }
-  const wijzig = (id: string, p: Partial<Deal>) => contact && d({ type: 'contact:patch', id: contact.id, patch: { deals: (contact.deals ?? []).map((x) => (x.id === id ? { ...x, ...p } : x)) } })
-  const verwijder = (id: string) => {
-    if (!contact) return
+  const deal = (contact?.deals ?? []).find((x) => x.id === open)
+  return (
+    <>
+      {offertes.length === 0 && <p className="muted" style={{ margin: '0 0 12px' }}>Nog geen offertes voor {client.name}. Alleen jij ziet dit; de klant ziet in het portaal alleen de pdf-offertes uit Moneybird.</p>}
+      <div className="dossier-projecten">
+        {offertes.map((x) => {
+          const st = ALLE_STAGES.find((y) => y.key === x.stage)
+          const i = Math.max(0, stappen.indexOf(x.stage))
+          return (
+            <button key={x.id} className="dossier-project offerte-kaart" draggable={kan('crm_bewerken')} onClick={() => setOpen(x.id)}
+              onDragStart={(e) => { e.dataTransfer.setData('text/rise-offerte', x.id); e.dataTransfer.effectAllowed = 'move' }}>
+              <strong>{x.titel || 'Naamloze offerte'}</strong>
+              <span className="muted small">{st?.label ?? x.stage}{kan('geld') && x.value ? ` · ${euro(x.value)}` : ''}</span>
+              <span className="mini-bar"><i style={{ width: `${((i + 1) / stappen.length) * 100}%` }} /></span>
+              <span className="muted small">{[`sinds ${fmtDate(x.createdAt)}`, x.notitie?.trim() ? 'notities' : null].filter(Boolean).join(' · ')}</span>
+            </button>
+          )
+        })}
+        {kan('crm_bewerken') && <button className="dossier-project offerte-nieuw" onClick={nieuwe}><Icon name="plus" size={14} /> Offerte</button>}
+      </div>
+      {deal && contact && <OfferteDrawer contact={contact} deal={deal} onClose={() => setOpen(null)} onNaarProject={(id) => { setOpen(null); onNaarProject(id) }} />}
+    </>
+  )
+}
+
+function OfferteDrawer({ contact, deal, onClose, onNaarProject }: { contact: Contact; deal: Deal; onClose: () => void; onNaarProject: (dealId: string) => void }) {
+  const { d } = useStore()
+  const kan = useMag()
+  const wijzig = (p: Partial<Deal>) => d({ type: 'contact:patch', id: contact.id, patch: { deals: (contact.deals ?? []).map((x) => (x.id === deal.id ? { ...x, ...p } : x)) } })
+  const verwijder = () => {
     const oud = contact.deals ?? []
-    d({ type: 'contact:patch', id: contact.id, patch: { deals: oud.filter((x) => x.id !== id) } })
+    d({ type: 'contact:patch', id: contact.id, patch: { deals: oud.filter((x) => x.id !== deal.id) } })
     metOngedaan('Offerte verwijderd', () => d({ type: 'contact:patch', id: contact.id, patch: { deals: oud } }))
+    onClose()
   }
   return (
-    <div className="offertes-tab">
-      <p className="muted small offertes-uitleg">Alleen voor jou, de klant ziet dit niet. In het portaal ziet de klant alleen de pdf-offertes uit Moneybird. Sleep een offerte naar <strong>Lopende projecten</strong> zodra de klant akkoord is: dan wordt het een project dat de klant wel ziet, zonder je notities.</p>
-      <div className="offerte-kaarten">
-        {offertes.map((x) => (
-          <fieldset key={x.id} className="kaal offerte-kaart" disabled={!kan('crm_bewerken')} draggable={kan('crm_bewerken')}
-            onDragStart={(e) => { e.dataTransfer.setData('text/rise-offerte', x.id); e.dataTransfer.effectAllowed = 'move' }}>
-            <div className="offerte-kop">
-              <span className="sleep-greep" aria-hidden="true">⋮⋮</span>
-              <input className="inline-input offerte-titel" placeholder="Project of video, bijv. Bedrijfsfilm 2027" value={x.titel} onChange={(e) => wijzig(x.id, { titel: e.target.value })} />
-              <button className="icon-btn" aria-label="Offerte verwijderen" onClick={() => verwijder(x.id)}><Icon name="x" size={13} /></button>
-            </div>
-            <div className="offerte-velden">
-              <select value={x.stage} style={{ color: ALLE_STAGES.find((st) => st.key === x.stage)?.kleur }} onChange={(e) => wijzig(x.id, { stage: e.target.value as Stage })}>
+    <Drawer open onClose={onClose} wide title={<><div className="drawer-kicker">Offerte · alleen voor jou, de klant ziet dit niet</div>{deal.titel || 'Nieuwe offerte'}</>}>
+      <div className="contact-grid">
+        <fieldset className="kaal" disabled={!kan('crm_bewerken')}>
+          <div className="info-list">
+            <div><span className="muted">Naam</span><input className="inline-input" autoFocus={!deal.titel} placeholder="Bijv. Bedrijfsfilm 2027" value={deal.titel} onChange={(e) => wijzig({ titel: e.target.value })} /></div>
+            <div><span className="muted">Fase</span>
+              <select value={deal.stage} style={{ color: ALLE_STAGES.find((st) => st.key === deal.stage)?.kleur }} onChange={(e) => wijzig({ stage: e.target.value as Stage })}>
                 {ALLE_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
               </select>
-              {kan('geld') && <input className="inline-input offerte-bedrag" type="number" min={0} step={50} placeholder="€ 0 ex btw" value={x.value || ''} onChange={(e) => wijzig(x.id, { value: Math.max(0, Number(e.target.value) || 0) })} />}
-              <span className="muted small">{fmtDate(x.createdAt)}</span>
             </div>
-            <textarea rows={2} placeholder="Notities, alleen voor jou (wensen, afspraken, prijsopbouw)" value={x.notitie ?? ''} onChange={(e) => wijzig(x.id, { notitie: e.target.value })} />
-            <button className="btn small" disabled={!x.titel.trim()} onClick={() => onNaarProject(x.id)}><Icon name="check" size={14} /> Akkoord: naar lopende projecten</button>
-          </fieldset>
-        ))}
-        {kan('crm_bewerken') && <button className="kolom-nieuw offerte-nieuw" onClick={nieuwe}><Icon name="plus" size={14} /> Offerte</button>}
-      </div>
-      {contact && (
-        <div className="two-col offertes-onder">
-          <div>
-            <h3 className="section-title">Opvolgen</h3>
-            <div className="card info-list">
-              <div><span className="muted">Opvolgen op</span><input className="inline-input" type="date" value={contact.opvolgen ?? ''} onChange={(e) => d({ type: 'contact:patch', id: contact.id, patch: { opvolgen: e.target.value || undefined } })} /></div>
-              {contact.opvolgen && <p className="muted small" style={{ margin: 0 }}>Op {opvolgDatum(contact.opvolgen)} krijg je 's ochtends een melding in Slack.</p>}
-            </div>
+            {kan('geld') && <div><span className="muted">Bedrag (ex btw)</span><input className="inline-input" type="number" min={0} step={50} placeholder="€ 0" value={deal.value || ''} onChange={(e) => wijzig({ value: Math.max(0, Number(e.target.value) || 0) })} /></div>}
+            <div><span className="muted">Opvolgen op</span><input className="inline-input" type="date" value={contact.opvolgen ?? ''} onChange={(e) => d({ type: 'contact:patch', id: contact.id, patch: { opvolgen: e.target.value || undefined } })} /></div>
           </div>
-          <div><ContactGeschiedenis contact={contact} /></div>
-        </div>
-      )}
-    </div>
+          <h3 className="section-title" style={{ marginTop: 18 }}>Notities <span className="muted small">(gaan nooit mee naar het project of het portaal)</span></h3>
+          <textarea className="offerte-notitie" rows={6} placeholder="Wensen, afspraken, prijsopbouw" value={deal.notitie ?? ''} onChange={(e) => wijzig({ notitie: e.target.value })} />
+          <button className="btn primary wide" style={{ marginTop: 14 }} disabled={!deal.titel.trim()} onClick={() => onNaarProject(deal.id)}><Icon name="check" size={16} /> Akkoord: naar lopende projecten</button>
+          <button className="link small danger" style={{ marginTop: 14 }} onClick={verwijder}>Offerte verwijderen</button>
+        </fieldset>
+        <div><ContactGeschiedenis contact={contact} /></div>
+      </div>
+    </Drawer>
   )
 }
