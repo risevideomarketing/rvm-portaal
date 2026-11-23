@@ -58,7 +58,7 @@ export function Opdrachten(_: { go: (r: string) => void }) {
       <div className="page-head">
         <div>
           <h1>Opdrachten</h1>
-          <p className="muted">Elke ochtend gezocht op Young Creators, Freelancer.nl, Hoofdkraan, TenderNed en het web. Bewaar wat je wilt oppakken, gooi de rest weg.</p>
+          <p className="muted">Elke ochtend om 06:15 automatisch ververst: TenderNed, Freelancer.nl en Hoofdkraan (Young Creators en het web als je Mac aanstaat). Bewaar wat je wilt oppakken, gooi de rest weg.</p>
         </div>
       </div>
       <div className="chips op-chips">

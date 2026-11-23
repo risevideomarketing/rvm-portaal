@@ -50,9 +50,6 @@ export function TaskRow({ t, onOpen, showClient = true }: { t: Task; onOpen: () 
           <StatusBadge s={t.status} />
         )}
       </td>
-      <td className="center" title={t.inAgenda ? 'Staat in de Rise-agenda' : 'Niet in de agenda'}>
-        <span className={t.inAgenda ? 'cal on' : 'cal'}><Icon name="calendar" size={15} /></span>
-      </td>
     </tr>
   )
 }
@@ -68,7 +65,6 @@ export function TaskTable({ tasks, onOpen, showClient = true }: { tasks: Task[];
           <th>Deadline</th>
           <th>Wie</th>
           <th>Fase</th>
-          <th className="center">Agenda</th>
         </tr>
       </thead>
       <tbody>
@@ -151,7 +147,7 @@ export function Taken({ klant: klantRoute, go }: { klant?: string; go?: (r: stri
 
   return (
     <>
-      <PageHead title="Taken" sub={`${s.tasks.filter((t) => opTodo(t) && t.status !== 'klaar').length} open · deadlines staan automatisch in de Rise-agenda`}>
+      <PageHead title="Taken" sub={`${s.tasks.filter((t) => opTodo(t) && t.status !== 'klaar').length} open · opleverdata van video's staan als hele dag in de Rise-agenda`}>
         <a className="btn" href={AGENDA_URL} target="_blank" rel="noreferrer"><Icon name="calendar" size={16} /> Rise-agenda</a>
         <button className="btn primary" onClick={() => setOpen(newTask({}, s.me))}><Icon name="plus" size={16} /> Nieuwe taak</button>
       </PageHead>

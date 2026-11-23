@@ -13,7 +13,8 @@ import type { Client, ContentPlek, Phase, Project, Task } from '../data/types'
 import { frameLinkVolledig, giveAccess, klantFacturen, weekoverzichtNu, type KlantFactuur } from '../slack'
 import { uid, useMag, useStore } from '../store'
 import { bezigMet, bronVan, euro, fmtDate, pakketNaam } from '../utils'
-import { Contactpersonen } from './Crm'
+import { Contactpersonen, OffertesTab, offerteNaarProject } from './Crm'
+import { metOngedaan } from '../components/Ongedaan'
 import { SnelleTaak, TaskTable } from './Taken'
 
 export function Klanten({ id, go, contentItem }: { id?: string; go: (r: string) => void; contentItem?: string }) {
@@ -605,12 +606,37 @@ function ProjectTrajecten({ client, go }: { client: Client; go: (r: string) => v
     d({ type: 'project:upsert', project: { id, name: naam.trim(), soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', wie: [s.me], createdAt: new Date().toISOString(), updates: [], phases: fasen, doneSteps: [], phase: 0 } })
     go(`productie/${id}`)
   }
+  // Offertes (alleen het team) staan in een eigen tab; slepen naar "Lopende projecten" maakt er een project van
+  const store = useStore()
+  const contact = s.contacts.find((c) => c.id === client.contactId)
+  const nOffertes = (contact?.deals ?? []).filter((x) => !(x.projectId && s.projects.some((p) => p.id === x.projectId))).length
+  const [tab, setTab] = useState<'projecten' | 'offertes'>('projecten')
+  const [boven, setBoven] = useState(false)
+  const naarProject = (dealId: string) => {
+    const c = s.contacts.find((x) => x.id === client.contactId)
+    if (!c) return
+    const oud = c.deals ?? []
+    const al = oud.find((x) => x.id === dealId)?.projectId
+    const id = offerteNaarProject(store, client, c, dealId)
+    if (!id) return
+    setTab('projecten')
+    if (id !== al) metOngedaan('Offerte staat nu bij lopende projecten', () => { d({ type: 'weg', table: 'projects', id }); d({ type: 'contact:patch', id: c.id, patch: { deals: oud, stage: c.stage } }) })
+  }
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => { if (e.dataTransfer.types.includes('text/rise-offerte')) { e.preventDefault(); setBoven(true) } },
+    onDragLeave: () => setBoven(false),
+    onDrop: (e: React.DragEvent) => { const id = e.dataTransfer.getData('text/rise-offerte'); setBoven(false); if (id) { e.preventDefault(); naarProject(id) } },
+  }
   return (
     <div className="card traject-kaart">
-      <div className="section-row" style={{ marginTop: 0 }}>
-        <h3 className="section-title">Projecten <span className="muted small">({lijst.length})</span></h3>
-        {kan('projecten') && <button className="btn small primary" onClick={() => setNieuwOpen(!nieuwOpen)}><Icon name="plus" size={14} /> Project</button>}
+      <div className="section-row dossier-tabs-rij" style={{ marginTop: 0 }}>
+        <div className="dossier-tabs" role="tablist">
+          <button role="tab" aria-selected={tab === 'projecten'} className={`dossier-tab ${tab === 'projecten' ? 'on' : ''} ${boven ? 'boven' : ''}`} onClick={() => setTab('projecten')} {...dropProps}>Lopende projecten <span className="muted small">({lijst.length})</span></button>
+          {kan('crm') && <button role="tab" aria-selected={tab === 'offertes'} className={`dossier-tab ${tab === 'offertes' ? 'on' : ''}`} onClick={() => setTab('offertes')}>Offertes <span className="muted small">({nOffertes})</span></button>}
+        </div>
+        {tab === 'projecten' && kan('projecten') && <button className="btn small primary" onClick={() => setNieuwOpen(!nieuwOpen)}><Icon name="plus" size={14} /> Project</button>}
       </div>
+      {tab === 'offertes' ? <OffertesTab client={client} onNaarProject={naarProject} /> : <div className={`projecten-drop ${boven ? 'boven' : ''}`} {...dropProps}>
       {nieuwOpen && (
         <div className="nieuw-project">
           <input autoFocus placeholder={`Naam, bijv. "Strijkviertel videoproductie"`} value={naam} onChange={(e) => setNaam(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') nieuw(); if (e.key === 'Escape') setNieuwOpen(false) }} />
@@ -635,6 +661,7 @@ function ProjectTrajecten({ client, go }: { client: Client; go: (r: string) => v
           )
         })}
       </div>
+      </div>}
     </div>
   )
 }

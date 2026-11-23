@@ -76,11 +76,8 @@ export function Crm({ go, weergave = 'pipeline' }: { go: (r: string) => void; we
     if (client) bezigMet(client.id)
   }
   /** Klant met profiel: naar het profiel. Anders: het contactvenster. */
-  const openKaart = (c: Contact) => {
-    const client = s.clients.find((x) => x.contactId === c.id)
-    if (client && isKlant(c.stage) && kan('klanten')) go(`klanten/${client.id}`)
-    else setOpenId(c.id)
-  }
+  // Elke opdracht-kaart opent de verkoopkaart (ook bij bestaande klanten); het klantdossier staat daarin als knop
+  const openKaart = (c: Contact) => setOpenId(c.id)
 
   /** Opdracht naar een klantdossier slepen: akkoord op de offerte, en de opdracht hoort bij die klant. Los op het blok = nieuwe klant. */
   const naarDossier = (key: string, client?: Client) => {
@@ -224,36 +221,53 @@ function KlantDossiers({ drag, setDrag, onDrop, go }: { drag: string | null; set
     return r[r.length - 1] ?? ''
   }
   const klanten = [...s.clients].map((c) => ({ c, r: recent(c) })).sort((a, b) => b.r.localeCompare(a.r)).map((x) => x.c)
-  return (
-    <section className={`card crm-dossiers ${drag ? 'droppable' : ''} ${boven === 'blok' ? 'boven' : ''}`}
-      onDragOver={(e) => { if (drag?.startsWith('k:')) return; e.preventDefault(); if (boven !== 'blok' && !(e.target as HTMLElement).closest('.klant-vakje')) setBoven('blok') }}
+  // Lopend: een offerte of opdracht in de pipeline, of een productie die nog niet is opgeleverd
+  const isLopend = (c: Client) => {
+    const contact = s.contacts.find((x) => x.id === c.contactId)
+    return (contact?.deals ?? []).some((x) => x.stage !== 'afgehandeld') || s.projects.some((p) => p.soort === 'productie' && p.clientId === c.id && p.fase !== 'live')
+  }
+  const lopend = klanten.filter(isLopend)
+  const rest = klanten.filter((c) => !isLopend(c))
+  const hint = drag?.startsWith('k:') ? 'Laat los in een fase hierboven voor een nieuwe offerte' : drag ? 'Laat los op een klant, of hier voor een nieuwe klant' : 'Recent bovenaan · sleep een klant omhoog voor een nieuwe offerte'
+  const vakjes = (lijst: Client[]) => (
+    <div className="klant-vakjes">
+      {lijst.map((c) => {
+        const merk = s.contacts.find((x) => x.id === c.contactId)
+        const n = s.projects.filter((p) => p.soort === 'productie' && p.clientId === c.id && p.fase !== 'live').length
+        const offertes = (merk?.deals ?? []).filter((x) => x.stage !== 'afgehandeld' && x.stage !== 'klant').length
+        return (
+          <button key={c.id} className={`klant-vakje ${boven === c.id ? 'boven' : ''}`} onClick={() => go(`klanten/${c.id}`)}
+            draggable={kan('crm_bewerken')} onDragStart={() => setDrag(`k:${c.id}`)} onDragEnd={() => setTimeout(() => setDrag(null), 0)}
+            onDragOver={(e) => { if (drag?.startsWith('k:')) return; e.preventDefault(); e.stopPropagation(); setBoven(c.id) }}
+            onDragLeave={() => setBoven(null)}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(null); if (drag && !drag.startsWith('k:')) onDrop(drag, c) }}>
+            <MerkLogo merk={merk} naam={c.name} size={36} />
+            <span className="klant-vakje-tekst">
+              <strong>{c.name}</strong>
+              <span className="muted small">{[n ? `${n} ${n === 1 ? 'project' : 'projecten'}` : '', offertes ? `${offertes} ${offertes === 1 ? 'offerte' : 'offertes'}` : '', !n && !offertes ? faseVan(c).label : ''].filter(Boolean).join(' · ')}</span>
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+  const blok = (id: string, titel: string, lijst: Client[], uitleg: string, leeg: string) => (
+    <section className={`card crm-dossiers ${drag ? 'droppable' : ''} ${boven === id ? 'boven' : ''}`}
+      onDragOver={(e) => { if (drag?.startsWith('k:')) return; e.preventDefault(); if (boven !== id && !(e.target as HTMLElement).closest('.klant-vakje')) setBoven(id) }}
       onDragLeave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setBoven(null) }}
       onDrop={(e) => { e.preventDefault(); setBoven(null); if (drag && !drag.startsWith('k:') && !(e.target as HTMLElement).closest('.klant-vakje')) onDrop(drag) }}>
       <div className="section-row" style={{ marginTop: 0 }}>
-        <h3 className="section-title">Klantdossiers <span className="muted small">({s.clients.length})</span></h3>
-        <span className="muted small">{drag?.startsWith('k:') ? 'Laat los in een fase hierboven voor een nieuwe offerte' : drag ? 'Laat los op een klant, of hier voor een nieuwe klant' : 'Recent bovenaan · sleep een klant omhoog voor een nieuwe offerte'}</span>
+        <h3 className="section-title">{titel} <span className="muted small">({lijst.length})</span></h3>
+        <span className="muted small">{uitleg}</span>
       </div>
-      <div className="klant-vakjes">
-        {klanten.map((c) => {
-          const merk = s.contacts.find((x) => x.id === c.contactId)
-          const lopend = s.projects.filter((p) => p.soort === 'productie' && p.clientId === c.id && p.fase !== 'live').length
-          return (
-            <button key={c.id} className={`klant-vakje ${boven === c.id ? 'boven' : ''}`} onClick={() => go(`klanten/${c.id}`)}
-              draggable={kan('crm_bewerken')} onDragStart={() => setDrag(`k:${c.id}`)} onDragEnd={() => setTimeout(() => setDrag(null), 0)}
-              onDragOver={(e) => { if (drag?.startsWith('k:')) return; e.preventDefault(); e.stopPropagation(); setBoven(c.id) }}
-              onDragLeave={() => setBoven(null)}
-              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setBoven(null); if (drag && !drag.startsWith('k:')) onDrop(drag, c) }}>
-              <MerkLogo merk={merk} naam={c.name} size={36} />
-              <span className="klant-vakje-tekst">
-                <strong>{c.name}</strong>
-                <span className="muted small">{faseVan(c).label}{lopend ? ` · ${lopend} ${lopend === 1 ? 'project' : 'projecten'}` : ''}</span>
-              </span>
-            </button>
-          )
-        })}
-        {s.clients.length === 0 && <p className="muted small">Nog geen klanten. Sleep een opdracht hierheen zodra de klant akkoord is.</p>}
-      </div>
+      {lijst.length ? vakjes(lijst) : <p className="muted small" style={{ margin: 0 }}>{leeg}</p>}
     </section>
+  )
+  return (
+    <>
+      {blok('lopend', 'Klanten met een lopende opdracht', lopend, hint, 'Geen klanten met een lopende opdracht of offerte.')}
+      {blok('rest', 'Overige klanten', rest, 'Niets lopend en geen open offerte · sleep een klant omhoog voor een nieuwe offerte', 'Alle klanten hebben iets lopen.')}
+    </>
   )
 }
 
@@ -467,26 +481,9 @@ export function SnelContactTaak({ contactId, clientId }: { contactId?: string; c
 function ContactDrawer({ contact, onClose, go }: { contact: Contact; onClose: () => void; go: (r: string) => void }) {
   const { s, d } = useStore()
   const kan = useMag()
-  const [kind, setKind] = useState<TimelineKind>('notitie')
-  const [body, setBody] = useState('')
-  const [image, setImage] = useState<string | undefined>()
   const [task, setTask] = useState<Task | null>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
   const client = s.clients.find((c) => c.contactId === contact.id)
   const tasks = takenVanContact(s, contact)
-
-  const onFile = (f?: File) => {
-    if (!f) return
-    const r = new FileReader()
-    r.onload = () => { setImage(String(r.result)); if (kind === 'notitie') setKind('whatsapp') }
-    r.readAsDataURL(f)
-  }
-
-  const add = () => {
-    if (!body.trim() && !image) return
-    d({ type: 'contact:timeline', id: contact.id, item: { id: uid(), kind, at: new Date().toISOString(), author: s.me, body: body.trim(), image } })
-    setBody(''); setImage(undefined)
-  }
 
   const patch = (p: Partial<Contact>) => d({ type: 'contact:patch', id: contact.id, patch: p })
 
@@ -565,50 +562,152 @@ function ContactDrawer({ contact, onClose, go }: { contact: Contact; onClose: ()
         </fieldset>
 
         <div>
-          <h3 className="section-title">Contactgeschiedenis</h3>
-          <div className="add-timeline">
-            <div className="kind-row">
-              {(['notitie', 'whatsapp', 'gesprek'] as TimelineKind[]).map((k) => (
-                <button key={k} className={`chip ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)}><Icon name={KIND[k].icon} size={13} /> {KIND[k].label}</button>
-              ))}
-            </div>
-            <textarea rows={2} placeholder="Wat is er besproken?" value={body} onChange={(e) => setBody(e.target.value)} />
-            {image && <img className="preview-img" src={image} alt="Voorbeeld screenshot" />}
-            <div className="mention-bar">
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => onFile(e.target.files?.[0])} />
-              <button className="btn small ghost" onClick={() => fileRef.current?.click()}><Icon name="image" size={14} /> Screenshot toevoegen</button>
-              <button className="btn small" onClick={add} disabled={!body.trim() && !image}>Toevoegen</button>
-            </div>
-          </div>
-
-          <DemoNote>Mails komen straks automatisch binnen vanuit de Rise-mailboxen (zie plan).</DemoNote>
-
-          <ol className="timeline">
-            {contact.timeline.length === 0 && <li className="muted small">Nog geen contact vastgelegd.</li>}
-            {contact.timeline.map((t) => (
-              <li key={t.id} className={`tl tl-${t.kind}`}>
-                <span className="tl-icon"><Icon name={KIND[t.kind].icon} size={14} /></span>
-                <div className="tl-body">
-                  <div className="tl-meta">
-                    <strong>{KIND[t.kind].label}</strong>
-                    {t.author && <span className="muted"> · {personName(t.author)}</span>}
-                    <span className="muted"> · {fmtDateTime(t.at)}</span>
-                    <button className="icon-btn tl-weg" aria-label="Verwijderen" onClick={() => {
-                      const oud = contact.timeline
-                      d({ type: 'contact:patch', id: contact.id, patch: { timeline: oud.filter((x) => x.id !== t.id) } })
-                      metOngedaan(`${KIND[t.kind].label} verwijderd`, () => d({ type: 'contact:patch', id: contact.id, patch: { timeline: oud } }))
-                    }}><Icon name="x" size={13} /></button>
-                  </div>
-                  {t.subject && <div className="tl-subject">{t.subject}</div>}
-                  {t.body && <div>{t.body}</div>}
-                  {t.image && <img className="tl-img" src={t.image} alt="Screenshot" />}
-                </div>
-              </li>
-            ))}
-          </ol>
+          <ContactGeschiedenis contact={contact} />
         </div>
       </div>
       {task && <TaskDrawer key={task.id} task={task} onClose={() => setTask(null)} />}
     </Drawer>
+  )
+}
+
+/** Contactgeschiedenis van een contact: notities, WhatsApp en gesprekken vastleggen (alleen het team). */
+export function ContactGeschiedenis({ contact }: { contact: Contact }) {
+  const { s, d } = useStore()
+  const [kind, setKind] = useState<TimelineKind>('notitie')
+  const [body, setBody] = useState('')
+  const [image, setImage] = useState<string | undefined>()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const onFile = (f?: File) => {
+    if (!f) return
+    const r = new FileReader()
+    r.onload = () => { setImage(String(r.result)); if (kind === 'notitie') setKind('whatsapp') }
+    r.readAsDataURL(f)
+  }
+
+  const add = () => {
+    if (!body.trim() && !image) return
+    d({ type: 'contact:timeline', id: contact.id, item: { id: uid(), kind, at: new Date().toISOString(), author: s.me, body: body.trim(), image } })
+    setBody(''); setImage(undefined)
+  }
+
+  return (
+    <>
+          <h3 className="section-title">Contactgeschiedenis</h3>
+      <div className="add-timeline">
+        <div className="kind-row">
+          {(['notitie', 'whatsapp', 'gesprek'] as TimelineKind[]).map((k) => (
+            <button key={k} className={`chip ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)}><Icon name={KIND[k].icon} size={13} /> {KIND[k].label}</button>
+          ))}
+        </div>
+        <textarea rows={2} placeholder="Wat is er besproken?" value={body} onChange={(e) => setBody(e.target.value)} />
+        {image && <img className="preview-img" src={image} alt="Voorbeeld screenshot" />}
+        <div className="mention-bar">
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+          <button className="btn small ghost" onClick={() => fileRef.current?.click()}><Icon name="image" size={14} /> Screenshot toevoegen</button>
+          <button className="btn small" onClick={add} disabled={!body.trim() && !image}>Toevoegen</button>
+        </div>
+      </div>
+
+      <DemoNote>Mails komen straks automatisch binnen vanuit de Rise-mailboxen (zie plan).</DemoNote>
+
+      <ol className="timeline">
+        {contact.timeline.length === 0 && <li className="muted small">Nog geen contact vastgelegd.</li>}
+        {contact.timeline.map((t) => (
+          <li key={t.id} className={`tl tl-${t.kind}`}>
+            <span className="tl-icon"><Icon name={KIND[t.kind].icon} size={14} /></span>
+            <div className="tl-body">
+              <div className="tl-meta">
+                <strong>{KIND[t.kind].label}</strong>
+                {t.author && <span className="muted"> · {personName(t.author)}</span>}
+                <span className="muted"> · {fmtDateTime(t.at)}</span>
+                <button className="icon-btn tl-weg" aria-label="Verwijderen" onClick={() => {
+                  const oud = contact.timeline
+                  d({ type: 'contact:patch', id: contact.id, patch: { timeline: oud.filter((x) => x.id !== t.id) } })
+                  metOngedaan(`${KIND[t.kind].label} verwijderd`, () => d({ type: 'contact:patch', id: contact.id, patch: { timeline: oud } }))
+                }}><Icon name="x" size={13} /></button>
+              </div>
+              {t.subject && <div className="tl-subject">{t.subject}</div>}
+              {t.body && <div>{t.body}</div>}
+              {t.image && <img className="tl-img" src={t.image} alt="Screenshot" />}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </>
+  )
+}
+
+/** Van een offerte een lopend project maken: alleen naam, bedrag en traject gaan mee, nooit de notities. Geeft de project-id. */
+export function offerteNaarProject(st: ReturnType<typeof useStore>, client: Client, contact: Contact, dealId: string): string | undefined {
+  const { s, d } = st
+  const deal = (contact.deals ?? []).find((x) => x.id === dealId)
+  if (!deal) return
+  if (deal.projectId && s.projects.some((p) => p.id === deal.projectId)) return deal.projectId
+  const id = uid()
+  const fasen = TRAJECTEN.find((t) => t.naam === deal.dienst || t.naam === deal.titel)?.fasen ?? PHASES
+  d({ type: 'project:upsert', project: { id, name: deal.titel || 'Nieuw project', soort: 'productie', clientId: client.id, fase: 'productie', contentSoort: 'video', priority: 'middel', bedrag: deal.value || undefined, wie: [deal.owner ?? s.me], createdAt: new Date().toISOString(), updates: [], phases: fasen, doneSteps: [], phase: 0 } })
+  d({ type: 'contact:patch', id: contact.id, patch: { stage: 'klant', deals: (contact.deals ?? []).map((x) => (x.id === dealId ? { ...x, stage: 'klant' as Stage, projectId: id } : x)) } })
+  return id
+}
+
+/** Tab "Offertes" in het klantdossier: alle verkoop voor deze klant. Alleen het team ziet dit, nooit de klant. */
+export function OffertesTab({ client, onNaarProject }: { client: Client; onNaarProject: (dealId: string) => void }) {
+  const store = useStore()
+  const { s, d } = store
+  const kan = useMag()
+  const contact = s.contacts.find((c) => c.id === client.contactId)
+  const offertes = (contact?.deals ?? []).filter((x) => !(x.projectId && s.projects.some((p) => p.id === x.projectId)))
+  const nieuwe = () => {
+    const deal: Deal = { id: uid(), titel: '', stage: 'voorstel', value: 0, owner: s.me, createdAt: new Date().toISOString() }
+    if (contact) return d({ type: 'contact:patch', id: contact.id, patch: { deals: [...(contact.deals ?? []), deal] } })
+    const c: Contact = { id: uid(), name: '', company: client.name, role: '', email: '', phone: '', stage: 'klant', value: 0, owner: s.me, source: '', timeline: [], deals: [deal] }
+    d({ type: 'contact:upsert', contact: c })
+    d({ type: 'client:upsert', client: { ...client, contactId: c.id } })
+  }
+  const wijzig = (id: string, p: Partial<Deal>) => contact && d({ type: 'contact:patch', id: contact.id, patch: { deals: (contact.deals ?? []).map((x) => (x.id === id ? { ...x, ...p } : x)) } })
+  const verwijder = (id: string) => {
+    if (!contact) return
+    const oud = contact.deals ?? []
+    d({ type: 'contact:patch', id: contact.id, patch: { deals: oud.filter((x) => x.id !== id) } })
+    metOngedaan('Offerte verwijderd', () => d({ type: 'contact:patch', id: contact.id, patch: { deals: oud } }))
+  }
+  return (
+    <div className="offertes-tab">
+      <p className="muted small offertes-uitleg">Alleen voor jou, de klant ziet dit niet. In het portaal ziet de klant alleen de pdf-offertes uit Moneybird. Sleep een offerte naar <strong>Lopende projecten</strong> zodra de klant akkoord is: dan wordt het een project dat de klant wel ziet, zonder je notities.</p>
+      <div className="offerte-kaarten">
+        {offertes.map((x) => (
+          <fieldset key={x.id} className="kaal offerte-kaart" disabled={!kan('crm_bewerken')} draggable={kan('crm_bewerken')}
+            onDragStart={(e) => { e.dataTransfer.setData('text/rise-offerte', x.id); e.dataTransfer.effectAllowed = 'move' }}>
+            <div className="offerte-kop">
+              <span className="sleep-greep" aria-hidden="true">⋮⋮</span>
+              <input className="inline-input offerte-titel" placeholder="Project of video, bijv. Bedrijfsfilm 2027" value={x.titel} onChange={(e) => wijzig(x.id, { titel: e.target.value })} />
+              <button className="icon-btn" aria-label="Offerte verwijderen" onClick={() => verwijder(x.id)}><Icon name="x" size={13} /></button>
+            </div>
+            <div className="offerte-velden">
+              <select value={x.stage} style={{ color: ALLE_STAGES.find((st) => st.key === x.stage)?.kleur }} onChange={(e) => wijzig(x.id, { stage: e.target.value as Stage })}>
+                {ALLE_STAGES.map((st) => <option key={st.key} value={st.key}>{st.label}</option>)}
+              </select>
+              {kan('geld') && <input className="inline-input offerte-bedrag" type="number" min={0} step={50} placeholder="€ 0 ex btw" value={x.value || ''} onChange={(e) => wijzig(x.id, { value: Math.max(0, Number(e.target.value) || 0) })} />}
+              <span className="muted small">{fmtDate(x.createdAt)}</span>
+            </div>
+            <textarea rows={2} placeholder="Notities, alleen voor jou (wensen, afspraken, prijsopbouw)" value={x.notitie ?? ''} onChange={(e) => wijzig(x.id, { notitie: e.target.value })} />
+            <button className="btn small" disabled={!x.titel.trim()} onClick={() => onNaarProject(x.id)}><Icon name="check" size={14} /> Akkoord: naar lopende projecten</button>
+          </fieldset>
+        ))}
+        {kan('crm_bewerken') && <button className="kolom-nieuw offerte-nieuw" onClick={nieuwe}><Icon name="plus" size={14} /> Offerte</button>}
+      </div>
+      {contact && (
+        <div className="two-col offertes-onder">
+          <div>
+            <h3 className="section-title">Opvolgen</h3>
+            <div className="card info-list">
+              <div><span className="muted">Opvolgen op</span><input className="inline-input" type="date" value={contact.opvolgen ?? ''} onChange={(e) => d({ type: 'contact:patch', id: contact.id, patch: { opvolgen: e.target.value || undefined } })} /></div>
+              {contact.opvolgen && <p className="muted small" style={{ margin: 0 }}>Op {opvolgDatum(contact.opvolgen)} krijg je 's ochtends een melding in Slack.</p>}
+            </div>
+          </div>
+          <div><ContactGeschiedenis contact={contact} /></div>
+        </div>
+      )}
+    </div>
   )
 }
