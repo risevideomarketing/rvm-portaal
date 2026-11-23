@@ -19,13 +19,15 @@ export default async (req: Request) => {
 
   const [bestaand] = await sb<{ role: string; client_id: string | null }[]>(`allowed_users?select=role,client_id&email=eq.${encodeURIComponent(email)}`)
   if (bestaand && bestaand.role !== 'client') return new Response('Dit adres is van een teamlid', { status: 409 })
-  if (bestaand && bestaand.client_id !== clientId) return new Response('Dit adres heeft al toegang tot een andere klant', { status: 409 })
-
-  await sb('allowed_users', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify({ email, role: 'client', client_id: clientId }),
-  })
+  // Heeft dit adres al een ander portaal, dan krijgt het er een klant bij (wisselen kan in het portaal).
+  // Het actieve portaal blijft dan staan; de toegang tot deze klant staat in client.logins.
+  if (!bestaand) {
+    await sb('allowed_users', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({ email, role: 'client', client_id: clientId }),
+    })
+  }
 
   // Account aanmaken via de Auth-admin-API; bestaat het al, dan is dat prima
   const key = env('SUPABASE_SERVICE_ROLE_KEY')
