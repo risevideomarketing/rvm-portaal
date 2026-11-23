@@ -81,6 +81,7 @@ function KlantPortaal({ clientId, email }: { clientId: string; email: string }) 
     <div className="portal-standalone">
       <PortaalView
         client={client}
+        facturen={!(client.zonderFacturen ?? []).map((x) => x.toLowerCase()).includes(email.toLowerCase())}
         actions={<><KlantWissel actief={client.id} /><button className="link small portal-logout" onClick={() => supabase!.auth.signOut()}>Uitloggen</button></>}
         onTaak={async (id, gedaan) => {
           const r = await klantTaakAf(id, gedaan)
