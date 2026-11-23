@@ -2,7 +2,7 @@
 // Klant: alleen de eigen facturen. Team (admin/sales): ?klant=<id> voor de voorvertoning en het dossier.
 // Koppeling: client.moneybirdContactId; leeg = zoeken op bedrijfsnaam in Moneybird-contacten.
 // Nooit concepten. Per factuur de openbare Moneybird-link (bekijken, downloaden, betalen).
-import { env, heeftRecht, sb, verifyAny } from '../lib/rise.mts'
+import { env, heeftRecht, sb, klantMagGeld, verifyAny } from '../lib/rise.mts'
 import { mb } from '../lib/moneybird.mts'
 import { contactenVan } from '../lib/facturen.mts'
 
@@ -14,6 +14,7 @@ export default async (req: Request) => {
   if (!me) return new Response('Niet ingelogd', { status: 401 })
   const team = ['admin', 'medewerker', 'sales'].includes(me.role)
   if (team && !(await heeftRecht(me.person ?? '', me.role, 'geld'))) return new Response('Geen toegang tot facturen', { status: 403 })
+  if (!team && me.client_id && !(await klantMagGeld(me.client_id, me.email))) return new Response('Geen toegang tot facturen', { status: 403 })
   const clientId = me.client_id ?? (team ? new URL(req.url).searchParams.get('klant') : null)
   if (!clientId) return new Response('Klant ontbreekt', { status: 400 })
   const [rij] = await sb<{ data: { name?: string; moneybirdContactId?: string; moneybirdContactIds?: string[]; offertePdfs?: { id: string; naam: string; pad: string; at: string; titel?: string }[] } }[]>(`clients?select=data&id=eq.${encodeURIComponent(clientId)}`)

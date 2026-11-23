@@ -5,7 +5,7 @@
 // Er wordt nooit iets verstuurd: het blijft een concept in Moneybird.
 import { insights, metaGekoppeld } from '../lib/meta.mts'
 import { contactVoorKlant, mb, moneybirdGekoppeld } from '../lib/moneybird.mts'
-import { heeftRecht, sb, verifyAny } from '../lib/rise.mts'
+import { heeftRecht, sb, klantMagGeld, verifyAny } from '../lib/rise.mts'
 
 type Venster = '7d_click' | '1d_click' | '7d_click_1d_view'
 interface Klant { name?: string; metaAdAccount?: string; moneybirdContactId?: string; commissiePct?: number; commissieVenster?: Venster; commissieGefactureerd?: Record<string, { bedrag: number; at: string; by?: string }> }
@@ -41,6 +41,7 @@ export default async (req: Request) => {
   if (!me) return new Response('Niet ingelogd', { status: 401 })
   const team = ['admin', 'medewerker', 'sales'].includes(me.role)
   if (team && !(await heeftRecht(me.person ?? '', me.role, 'geld'))) return new Response('Geen toegang tot geld en facturen', { status: 403 })
+  if (!team && me.client_id && !(await klantMagGeld(me.client_id, me.email))) return new Response('Geen toegang tot facturen', { status: 403 })
 
   const url = new URL(req.url)
   const body = req.method === 'POST' ? (((await req.json().catch(() => ({}))) ?? {}) as { klant?: string; maand?: string }) : {}
