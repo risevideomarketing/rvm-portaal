@@ -89,7 +89,7 @@ export async function verifyAny(token: string | null) {
   })
   if (!res.ok) return null
   const user = (await res.json()) as { id: string }
-  const [profile] = await sb<{ person: string | null; role: string; client_id: string | null }[]>(`profiles?select=person,role,client_id&user_id=eq.${user.id}`)
+  const [profile] = await sb<{ person: string | null; role: string; client_id: string | null; email: string | null }[]>(`profiles?select=person,role,client_id,email&user_id=eq.${user.id}`)
   return profile ?? null
 }
 
@@ -184,4 +184,11 @@ export function werkurenSinds(iso: string, now = new Date()) {
 /** Korte handtekening (HMAC) over een tekst, met de serversleutel; voor links zoals afmelden. */
 export function teken(tekst: string) {
   return createHmac('sha256', env('SUPABASE_SERVICE_ROLE_KEY')).update(tekst).digest('hex').slice(0, 32)
+}
+
+/** Mag deze klantlogin facturen, offertes en bedragen zien? (Daan zet het per persoon uit in het dossier.) */
+export async function klantMagGeld(clientId: string, email: string | null | undefined) {
+  if (!email) return true
+  const [rij] = await sb<{ data: { zonderFacturen?: string[] } }[]>(`clients?select=data&id=eq.${encodeURIComponent(clientId)}`)
+  return !(rij?.data?.zonderFacturen ?? []).map((x) => x.toLowerCase()).includes(email.toLowerCase())
 }
