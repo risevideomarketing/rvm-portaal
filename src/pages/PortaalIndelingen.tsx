@@ -595,9 +595,12 @@ function Service(p: P) {
   const volgende = g.komend.find((m) => m.soort !== 'taak')
   const heeftKalender = (client.kanalen ?? []).length > 0
   const [tab, setTab] = useState<'overzicht' | 'content' | 'geld' | 'strippenkaart'>('overzicht')
+  const geenProject = lopend.length === 0
   const status = g.open.length
     ? `Wij regelen de rest. Er ${g.open.length === 1 ? 'staat één ding' : `staan ${g.open.length} dingen`} voor je klaar, verder hoef je niets te doen.`
-    : 'Je hoeft niets te doen. Wij zijn aan de slag en houden je hier op de hoogte.'
+    : geenProject
+      ? 'Op dit moment loopt er geen project. Zodra we samen iets nieuws starten, zie je hier precies waar we staan.'
+      : 'Je hoeft niets te doen. Wij zijn aan de slag en houden je hier op de hoogte.'
   return (
     <div className="portal pl sv">
       <header className="portal-head">
@@ -626,7 +629,7 @@ function Service(p: P) {
       <section className="sv-hero">
         <div className="sv-hero-tekst">
           <span className="sv-kicker">Status{g.pakket ? ` · ${g.pakket}` : ''}</span>
-          {lopend.length === 0 ? <h2>{g.titel}</h2> : (
+          {geenProject ? <h2>Geen lopende projecten</h2> : (
             <ul className="sv-videos">
               {lopend.map((x) => <VideoStatus key={x.id} x={x} vandaag={g.vandaag} />)}
             </ul>
@@ -635,7 +638,9 @@ function Service(p: P) {
           {client.onboardingVideoUrl && <a className="btn light small" href={client.onboardingVideoUrl} target="_blank" rel="noreferrer">Welkomstvideo <Icon name="external" size={13} /></a>}
         </div>
         <div className="sv-hero-cijfers">
-          <div><span>Voortgang</span><strong>{g.procent}%</strong><Balkje procent={g.procent} licht /></div>
+          {geenProject
+            ? <div><span>Lopend</span><strong>0</strong><em>projecten</em></div>
+            : <div><span>Voortgang</span><strong>{g.procent}%</strong><Balkje procent={g.procent} licht /></div>}
           <div><span>Volgende</span><strong>{volgende ? kort(volgende.datum) : '—'}</strong><em>{volgende?.titel ?? 'nog niets gepland'}</em></div>
           <div><span>Opgeleverd</span><strong>{klaar.length}</strong><em>{klaar.length === 1 ? 'productie' : 'producties'}</em></div>
         </div>
@@ -649,14 +654,14 @@ function Service(p: P) {
         </section>
       )}
 
-      <ol className="portal-steps sv-steps">
+      {!geenProject && <ol className="portal-steps sv-steps">
         {g.traject.map((f, i) => (
           <li key={f.key} className={i < g.huidig ? 'done' : i === g.huidig ? 'current' : ''}>
             <span className="dot">{i < g.huidig ? <Icon name="check" size={12} /> : ''}</span>
             <span>{f.klantLabel}</span>
           </li>
         ))}
-      </ol>
+      </ol>}
 
       <div className="portal-grid portal-grid-2 sv-rij">
         <section className="portal-card">
