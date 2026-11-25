@@ -182,7 +182,7 @@ function KlantDetail({ client, go, contentItem }: { client: Client; go: (r: stri
           {client.frameUrl && (
             <>
               <h3 className="section-title" style={{ marginTop: 18 }}>Frame.io <span className="muted small">(zo staat het ook in het portaal)</span></h3>
-              <div className="card"><FrameEmbed url={client.frameUrl} /></div>
+              <div className="card"><FrameEmbed url={client.frameUrl} klantId={client.id} /></div>
             </>
           )}
           <h3 className="section-title" style={{ marginTop: 18 }}>Contentplekken <span className="muted small">(Rise en klant kunnen links toevoegen)</span></h3>
