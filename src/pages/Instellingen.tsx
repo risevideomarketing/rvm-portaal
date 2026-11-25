@@ -1,3 +1,4 @@
+import { FrameioKoppeling } from '../components/FrameEmbed'
 import { useEffect, useState } from 'react'
 import { Avatar, Icon, PageHead, Segmented } from '../components/ui'
 import { MELDINGEN, RECHTEN, RECHTEN_SJABLONEN } from '../data/mock'
@@ -37,6 +38,7 @@ export function Instellingen() {
       <Weergave />
       <Meldingen />
       {beheerder && <Team />}
+      {beheerder && <FrameioKoppeling />}
       {beheerder && <Backup />}
     </>
   )
